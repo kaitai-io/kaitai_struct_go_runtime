@@ -8,6 +8,8 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/transform"
 )
 
 const APIVersion = 0x0001
@@ -159,6 +161,12 @@ func (k *Stream) ReadBytesFull() ([]byte, error) {
 	return ioutil.ReadAll(k)
 }
 
+// FIXME handle the corner cases for all the options of this method
+func (k *Stream) ReadBytesTerm(term byte, includeTerm, constumeTerm, eosError bool) ([]byte, error) {
+	r := bufio.NewReader(k)
+	return r.ReadSlice(term)
+}
+
 // Go's string type can contain any bytes.  The Go `range` operator
 // assumes that the encoding is UTF-8 and some standard Go libraries
 // also would like UTF-8.  For now we'll leave any advanced
@@ -172,14 +180,6 @@ func (k *Stream) ReadStrByteLimit(limit int, encoding string) (string, error) {
 	buf := make([]byte, limit)
 	n, err := k.Read(buf)
 	return string(buf[:n]), err
-}
-
-// Should term be larger than a byte?
-// Why does the interface have both includeTerm and consumeTerm booleans?
-// FIXME handle the corner cases for all the options of this method
-func (k *Stream) ReadZ(encoding string, term byte, includeTerm, consumeTerm, eosError bool) (string, error) {
-	r := bufio.NewReader(k)
-	return r.ReadString(term)
 }
 
 func (k *Stream) AlignToByte() {
@@ -245,4 +245,14 @@ func ProcessZlib(in []byte) (out []byte, err error) {
 	}
 
 	return ioutil.ReadAll(r)
+}
+
+func BytesToStr(in []byte, decoder *encoding.Decoder) (out string, err error) {
+	i := bytes.NewReader(in)
+	o := transform.NewReader(i, decoder)
+	d, e := ioutil.ReadAll(o)
+	if e != nil {
+		return "", e
+	}
+	return string(d), nil
 }
