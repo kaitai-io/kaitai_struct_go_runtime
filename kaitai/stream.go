@@ -161,10 +161,26 @@ func (k *Stream) ReadBytesFull() ([]byte, error) {
 	return ioutil.ReadAll(k)
 }
 
-// FIXME handle the corner cases for all the options of this method
-func (k *Stream) ReadBytesTerm(term byte, includeTerm, constumeTerm, eosError bool) ([]byte, error) {
+func (k *Stream) ReadBytesTerm(term byte, includeTerm, consumeTerm, eosError bool) ([]byte, error) {
 	r := bufio.NewReader(k)
-	return r.ReadSlice(term)
+	slice, err := r.ReadBytes(term)
+	if err != nil {
+		if !eosError && err == io.EOF {
+			err = nil
+		}
+		return slice, err
+	}
+	if !includeTerm {
+		slice = slice[:len(slice)-1]
+	}
+	if !consumeTerm {
+		// bytes.Reader and bufio.Reader have UnreadByte, but Stream does not yet so we Seek back one byte.
+		_, err = k.Seek(-1, io.SeekCurrent)
+		if err != nil {
+			return slice, err
+		}
+	}
+	return slice, nil
 }
 
 // Go's string type can contain any bytes.  The Go `range` operator
