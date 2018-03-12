@@ -163,7 +163,18 @@ func (k *Stream) ReadBytesFull() ([]byte, error) {
 
 func (k *Stream) ReadBytesTerm(term byte, includeTerm, consumeTerm, eosError bool) ([]byte, error) {
 	r := bufio.NewReader(k)
+	pos, err := k.Pos()
+	if err != nil {
+		return nil, err
+	}
 	slice, err := r.ReadBytes(term)
+	defer func(){
+		newPos := pos + int64(len(slice))
+		if consumeTerm {
+			newPos += 1
+		}
+		k.Seek(newPos, io.SeekStart)
+	}()
 	if err != nil {
 		if !eosError && err == io.EOF {
 			err = nil
