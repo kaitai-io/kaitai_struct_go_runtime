@@ -8,6 +8,8 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
+	"math/bits"
+
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/transform"
 )
@@ -161,6 +163,26 @@ func (k *Stream) ReadBytesFull() ([]byte, error) {
 	return ioutil.ReadAll(k)
 }
 
+func (k *Stream) ReadBytesPadTerm(size int, term, pad byte, includeTerm bool) ([]byte, error) {
+	bs, err := k.ReadBytes(size)
+	if err != nil {
+		return nil, err
+	}
+
+	bs = bytes.TrimRight(bs, string(pad))
+
+	i := bytes.IndexByte(bs, term)
+	if i != -1 {
+		if includeTerm {
+			bs = bs[:i+1]
+		} else {
+			bs = bs[:i]
+		}
+	}
+
+	return bs, nil
+}
+
 func (k *Stream) ReadBytesTerm(term byte, includeTerm, consumeTerm, eosError bool) ([]byte, error) {
 	r := bufio.NewReader(k)
 	pos, err := k.Pos()
@@ -168,7 +190,7 @@ func (k *Stream) ReadBytesTerm(term byte, includeTerm, consumeTerm, eosError boo
 		return nil, err
 	}
 	slice, err := r.ReadBytes(term)
-	defer func(){
+	defer func() {
 		newPos := pos + int64(len(slice))
 		if consumeTerm {
 			newPos += 1
@@ -244,21 +266,20 @@ func (k *Stream) ReadBitsArray(n uint) error {
 	return nil
 }
 
-func ProcessXORone(data []byte, key byte) {
+func ProcessXOR(data []byte, key []byte) {
 	for i := range data {
-		data[i] ^= key
+		data[i] ^= key[i%len(key)]
 	}
 }
 
-func ProcessXORmany(data []byte, key []byte) {
+func ProcessRotateLeft(data []byte, amount int) {
 	for i := range data {
-		data[i] ^= key[i]
+		data[i] = byte(bits.RotateLeft8(uint8(data[i]), amount))
 	}
 }
 
-// FIXME what is group_size ?
-func ProcessRotateLeft(data []byte, amount int, group_size int) {
-
+func ProcessRotateRight(data []byte, amount int) {
+	ProcessRotateLeft(data, -amount)
 }
 
 func ProcessZlib(in []byte) (out []byte, err error) {
@@ -268,7 +289,7 @@ func ProcessZlib(in []byte) (out []byte, err error) {
 	// we could reuse it by using a sync.Pool if this is called in a tight loop.
 	r, err := zlib.NewReader(b)
 	if err != nil {
-		return out, err
+		return nil, err
 	}
 
 	return ioutil.ReadAll(r)
