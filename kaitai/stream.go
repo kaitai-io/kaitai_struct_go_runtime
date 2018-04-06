@@ -45,6 +45,32 @@ func (k *Stream) EOF() bool {
 	return false
 }
 
+func (k *Stream) Size() (int64, error) {
+	// Go has no internal ReadSeeker function to get current ReadSeeker size,
+	// thus we use the following trick.
+	// Remember our current position
+	curPos, err := k.Pos()
+	if err != nil {
+		return 0, err
+	}
+	// Seek to the end of the File object
+	_, err = k.Seek(0, io.SeekEnd)
+	if err != nil {
+		return 0, err
+	}
+	// Remember position, which is equal to the full length
+	fullSize, err := k.Pos()
+	if err != nil {
+		return fullSize, err
+	}
+	// Seek back to the current position
+	_, err = k.Seek(curPos, io.SeekStart)
+	if err != nil {
+		return fullSize, err
+	}
+	return fullSize, nil
+}
+
 func (k *Stream) Pos() (int64, error) {
 	return k.Seek(0, io.SeekCurrent)
 }
