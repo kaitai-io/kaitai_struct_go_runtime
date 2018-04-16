@@ -10,20 +10,24 @@ import (
 	"golang.org/x/text/transform"
 )
 
-func ProcessXOR(data []byte, key []byte) {
+func ProcessXOR(data []byte, key []byte) []byte {
+	out := make([]byte, len(data))
 	for i := range data {
-		data[i] ^= key[i%len(key)]
+		out[i] = data[i] ^ key[i%len(key)]
 	}
+	return out
 }
 
-func ProcessRotateLeft(data []byte, amount int) {
+func ProcessRotateLeft(data []byte, amount int) []byte {
+	out := make([]byte, len(data))
 	for i := range data {
-		data[i] = byte(bits.RotateLeft8(uint8(data[i]), amount))
+		out[i] = byte(bits.RotateLeft8(uint8(data[i]), amount))
 	}
+	return out
 }
 
-func ProcessRotateRight(data []byte, amount int) {
-	ProcessRotateLeft(data, -amount)
+func ProcessRotateRight(data []byte, amount int) []byte {
+	return ProcessRotateLeft(data, -amount)
 }
 
 func ProcessZlib(in []byte) (out []byte, err error) {
