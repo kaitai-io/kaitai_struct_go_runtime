@@ -21,7 +21,7 @@ func ProcessXOR(data []byte, key []byte) []byte {
 func ProcessRotateLeft(data []byte, amount int) []byte {
 	out := make([]byte, len(data))
 	for i := range data {
-		out[i] = byte(bits.RotateLeft8(uint8(data[i]), amount))
+		out[i] = byte(bits.RotateLeft8(data[i], amount))
 	}
 	return out
 }
