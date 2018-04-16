@@ -26,18 +26,24 @@ func NewStream(r io.ReadSeeker) (s *Stream) {
 	return
 }
 
-func (k *Stream) EOF() bool {
-	// Not sure about this one.  In Go, an io.EOF is returned as
-	// an error from a Read() when the EOF is reached.  EOF
-	// handling can then be done like this:
-	//
-	// v, err := k.ReadU1()
-	// if err == io.EOF {
-	//       // Handle EOF error
-	// } else if err != nil {
-	//       // Handle all other errors
-	// }
-	return false
+func (k *Stream) EOF() (bool, error) {
+	curPos, err := k.Pos()
+	if err != nil {
+		return false, err
+	}
+
+	isEOF := false
+	_, err = k.ReadU1()
+	if err == io.EOF {
+		isEOF = true
+		err = nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	_, err = k.Seek(curPos, io.SeekStart)
+	return isEOF, err
 }
 
 func (k *Stream) Size() (int64, error) {
