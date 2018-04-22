@@ -12,6 +12,5 @@ stages:
 jobs:
   include:
     - stage: test
-      before_script: script: bash tests/setup.sh
-      script: bash tests/run.sh
-    - script: bash tests/lint.sh
+      script: bash tests/setup.sh && bash tests/run.sh
+    - script: bash tests/setup.sh && bash tests/lint.sh
