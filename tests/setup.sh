@@ -9,7 +9,8 @@ git clone https://github.com/kaitai-io/ci_targets/
 mv ci_targets/compiled/go/src/test_formats src/test_formats
 rm -rf ci_targets
 
-ln -s $HOME/gopath/src/github.com/cugu/kaitai_struct_go_runtime $HOME/gopath/src/github.com/github.com/kaitai-io/kaitai_struct_go_runtime/kaitai
+mkdir -p $HOME/gopath/src/github.com/github.com/kaitai-io/kaitai_struct_go_runtime/kaitai
+cp -r $HOME/gopath/src/github.com/cugu/kaitai_struct_go_runtime $HOME/gopath/src/github.com/github.com/kaitai-io/kaitai_struct_go_runtime/kaitai
 
 go get github.com/stretchr/testify/assert
 go get golang.org/x/text
