@@ -1,3 +1,5 @@
+gometalinter.v2 --install
+
 # runtime
 gometalinter.v2 kaitai
 # tests
