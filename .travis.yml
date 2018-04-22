@@ -1,0 +1,16 @@
+dist: trusty
+sudo: false
+language: go
+
+go:
+  - "1.9"
+  - "1.10.x"
+  - master
+
+jobs:
+  include:
+    - stage: install
+      script: ./tests/setup.sh
+    - stage: test
+      script: ./tests/run.sh
+    - script: ./tests/lint.sh
