@@ -7,6 +7,10 @@ go:
   - "1.10.x"
   - master
 
+stages:
+  - install
+  - test
+
 jobs:
   include:
     - stage: install
