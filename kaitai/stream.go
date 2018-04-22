@@ -301,39 +301,39 @@ func (k *Stream) AlignToByte() {
 
 // ReadBitsInt reads totalBitsNeeded bits and return those as uint64.
 func (k *Stream) ReadBitsInt(totalBitsNeeded uint8) (val uint64, err error) {
-    for totalBitsNeeded > 0 {
+	for totalBitsNeeded > 0 {
 
-        // read next byte into buf
-        if k.bitsRemaining == 0 {
-            // FIXME we could optimize the readBits == 8 case here in the future
-            k.bitsRemaining = 8
-            _, err = k.Read(k.buf[:1])
-            if err != nil {
-                return val, err
-            }
-        }
+		// read next byte into buf
+		if k.bitsRemaining == 0 {
+			// FIXME we could optimize the readBits == 8 case here in the future
+			k.bitsRemaining = 8
+			_, err = k.Read(k.buf[:1])
+			if err != nil {
+				return val, err
+			}
+		}
 
-        // define how many bits should be read
-        readBits := totalBitsNeeded % 8
-        if totalBitsNeeded == 8 {
-            readBits = 8
-        }
+		// define how many bits should be read
+		readBits := totalBitsNeeded % 8
+		if totalBitsNeeded == 8 {
+			readBits = 8
+		}
 
-        // current byte contains all needed bits
-        if readBits < k.bitsRemaining {
-            val = (val << readBits) | uint64(k.buf[0]>>(k.bitsRemaining-readBits))
-            k.bitsRemaining -= readBits
-            k.buf[0] &= (1 << k.bitsRemaining) - 1
-            // more bytes are needed
-        } else {
-            readBits = k.bitsRemaining
-            k.bitsRemaining = 0
-            val = (val << readBits) | uint64(k.buf[0])
-        }
+		// current byte contains all needed bits
+		if readBits < k.bitsRemaining {
+			val = (val << readBits) | uint64(k.buf[0]>>(k.bitsRemaining-readBits))
+			k.bitsRemaining -= readBits
+			k.buf[0] &= (1 << k.bitsRemaining) - 1
+			// more bytes are needed
+		} else {
+			readBits = k.bitsRemaining
+			k.bitsRemaining = 0
+			val = (val << readBits) | uint64(k.buf[0])
+		}
 
-        totalBitsNeeded -= readBits
-    }
-    return val, nil
+		totalBitsNeeded -= readBits
+	}
+	return val, nil
 }
 
 // ReadBitsArray is not implemented yet.
