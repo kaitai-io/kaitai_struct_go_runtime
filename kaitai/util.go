@@ -10,6 +10,7 @@ import (
 	"golang.org/x/text/transform"
 )
 
+// ProcessXOR returns data xored with the key.
 func ProcessXOR(data []byte, key []byte) []byte {
 	out := make([]byte, len(data))
 	for i := range data {
@@ -18,6 +19,8 @@ func ProcessXOR(data []byte, key []byte) []byte {
 	return out
 }
 
+// ProcessRotateLeft returns the single bytes in data rotated left by
+// amount bits.
 func ProcessRotateLeft(data []byte, amount int) []byte {
 	out := make([]byte, len(data))
 	for i := range data {
@@ -26,11 +29,14 @@ func ProcessRotateLeft(data []byte, amount int) []byte {
 	return out
 }
 
+// ProcessRotateRight returns the single bytes in data rotated right by
+// amount bits.
 func ProcessRotateRight(data []byte, amount int) []byte {
 	return ProcessRotateLeft(data, -amount)
 }
 
-func ProcessZlib(in []byte) (out []byte, err error) {
+// ProcessZlib decompresses the given bytes as specified in RFC 1950.
+func ProcessZlib(in []byte) ([]byte, error) {
 	b := bytes.NewReader(in)
 
 	// FIXME zlib.NewReader allocates a bunch of memory.  In the future
@@ -43,7 +49,8 @@ func ProcessZlib(in []byte) (out []byte, err error) {
 	return ioutil.ReadAll(r)
 }
 
-func BytesToStr(in []byte, decoder *encoding.Decoder) (out string, err error) {
+// BytesToStr returns a string decoded by the given decoder.
+func BytesToStr(in []byte, decoder *encoding.Decoder) (string, error) {
 	i := bytes.NewReader(in)
 	o := transform.NewReader(i, decoder)
 	d, e := ioutil.ReadAll(o)
@@ -53,6 +60,7 @@ func BytesToStr(in []byte, decoder *encoding.Decoder) (out string, err error) {
 	return string(d), nil
 }
 
+// StringReverse returns the string s in reverse order.
 func StringReverse(s string) string {
 	r := []rune(s)
 	for i, j := 0, len(r)-1; i < len(r)/2; i, j = i+1, j-1 {
