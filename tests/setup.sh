@@ -10,7 +10,7 @@ mv ci_targets/compiled/go/src/test_formats src/test_formats
 rm -rf ci_targets
 
 mkdir -p $HOME/gopath/src/github.com/github.com/kaitai-io/kaitai_struct_go_runtime/kaitai
-cp -r $HOME/gopath/src/github.com/cugu/kaitai_struct_go_runtime $HOME/gopath/src/github.com/github.com/kaitai-io/kaitai_struct_go_runtime
+cp -v -r $HOME/gopath/src/github.com/cugu/kaitai_struct_go_runtime $HOME/gopath/src/github.com/github.com/kaitai-io/kaitai_struct_go_runtime
 
 go get github.com/stretchr/testify/assert
 go get golang.org/x/text
