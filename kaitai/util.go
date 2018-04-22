@@ -35,7 +35,8 @@ func ProcessRotateRight(data []byte, amount int) []byte {
 	return ProcessRotateLeft(data, -amount)
 }
 
-func ProcessZlib(in []byte) (out []byte, err error) {
+// ProcessZlib decompresses the given bytes as specified in RFC 1950.
+func ProcessZlib(in []byte) ([]byte, error) {
 	b := bytes.NewReader(in)
 
 	// FIXME zlib.NewReader allocates a bunch of memory.  In the future
@@ -48,7 +49,8 @@ func ProcessZlib(in []byte) (out []byte, err error) {
 	return ioutil.ReadAll(r)
 }
 
-func BytesToStr(in []byte, decoder *encoding.Decoder) (out string, err error) {
+// BytesToStr returns a string decoded by the given decoder.
+func BytesToStr(in []byte, decoder *encoding.Decoder) (string, error) {
 	i := bytes.NewReader(in)
 	o := transform.NewReader(i, decoder)
 	d, e := ioutil.ReadAll(o)
