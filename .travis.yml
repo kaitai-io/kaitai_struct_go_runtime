@@ -3,7 +3,7 @@ sudo: false
 language: go
 
 go:
-  - master
+  - "1.10"
 
 stages:
   - install
