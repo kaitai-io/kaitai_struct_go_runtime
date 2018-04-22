@@ -3,14 +3,10 @@ sudo: false
 language: go
 
 go:
-  - "1.9"
-  - "1.10.x"
-  - master
+  - "1.10"
 
 jobs:
   include:
-    - stage: install
-      script: ./tests/setup.sh
     - stage: test
-      script: ./tests/run.sh
-    - script: ./tests/lint.sh
+      script: bash tests/setup.sh && bash tests/run.sh
+    - script: bash tests/setup.sh && bash tests/lint.sh
