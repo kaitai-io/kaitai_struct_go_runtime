@@ -1,7 +1,7 @@
 rm -rf src
 mkdir src
 
-mkdir -p $HOME/gopath/src/github.com/github.com/kaitai-io/kaitai_struct_go_runtime
+mkdir -p $HOME/gopath/src/github.com/kaitai-io/kaitai_struct_go_runtime
 cp -v -r $HOME/gopath/src/github.com/cugu/kaitai_struct_go_runtime/kaitai $HOME/gopath/src/github.com/kaitai-io/kaitai_struct_go_runtime
 
 
