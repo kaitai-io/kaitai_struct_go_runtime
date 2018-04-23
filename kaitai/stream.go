@@ -241,10 +241,6 @@ func (k *Stream) ReadBytesPadTerm(size int, term, pad byte, includeTerm bool) ([
 // errors result in an error.
 func (k *Stream) ReadBytesTerm(term byte, includeTerm, consumeTerm, eosError bool) ([]byte, error) {
 	r := bufio.NewReader(k)
-	pos, err := k.Pos()
-	if err != nil {
-		return nil, err
-	}
 	slice, err := r.ReadBytes(term)
 
 	if err != nil && (err != io.EOF || eosError) {
