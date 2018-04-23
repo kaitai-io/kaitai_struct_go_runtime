@@ -70,10 +70,7 @@ func (k *Stream) Size() (int64, error) {
 	}
 	// Seek back to the current position
 	_, err = k.Seek(curPos, io.SeekStart)
-	if err != nil {
-		return fullSize, err
-	}
-	return fullSize, nil
+	return fullSize, err
 }
 
 // Pos returns the current position of the stream.
