@@ -315,13 +315,16 @@ func (k *Stream) ReadBitsInt(totalBitsNeeded uint8) (val uint64, err error) {
 
 		// define how many bits should be read
 		readBits := totalBitsNeeded % 8
+		if totalBitsNeeded == 8 {
+			readBits = 8
+		}
 
 		// current byte contains all needed bits
 		if readBits < k.bitsRemaining {
 			val = (val << readBits) | uint64(k.buf[0]>>(k.bitsRemaining-readBits))
 			k.bitsRemaining -= readBits
 			k.buf[0] &= (1 << k.bitsRemaining) - 1
-		// more bytes are needed
+			// more bytes are needed
 		} else {
 			readBits = k.bitsRemaining
 			k.bitsRemaining = 0
