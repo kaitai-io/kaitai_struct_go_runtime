@@ -24,8 +24,8 @@ type Stream struct {
 }
 
 // NewStream creates and initializes a new Buffer based on r.
-func NewStream(r io.ReadSeeker) (*Stream) {
-	return &Stream{ ReadSeeker: r }
+func NewStream(r io.ReadSeeker) *Stream {
+	return &Stream{ReadSeeker: r}
 }
 
 // EOF returns true when the end of the Stream is reached.
