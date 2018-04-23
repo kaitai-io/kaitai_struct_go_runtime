@@ -243,23 +243,23 @@ func (k *Stream) ReadBytesPadTerm(size int, term, pad byte, includeTerm bool) ([
 // is set the stream continues after the term byte. If eosError is set EOF
 // errors result in an error.
 func (k *Stream) ReadBytesTerm(term byte, includeTerm, consumeTerm, eosError bool) ([]byte, error) {
-    r := bufio.NewReader(k)
-    pos, err := k.Pos()
-    if err != nil {
-        return nil, err
-    }
-    slice, err := r.ReadBytes(term)
+	r := bufio.NewReader(k)
+	pos, err := k.Pos()
+	if err != nil {
+		return nil, err
+	}
+	slice, err := r.ReadBytes(term)
 
-    if err != nil && (err != io.EOF || eosError) {
-        return slice, err
-    }
-    if !includeTerm {
-        slice = slice[:len(slice)-1]
-    }
-    if !consumeTerm {
-        _, err = k.Seek(-1, io.SeekCurrent)
-    }
-    return slice, err
+	if err != nil && (err != io.EOF || eosError) {
+		return slice, err
+	}
+	if !includeTerm {
+		slice = slice[:len(slice)-1]
+	}
+	if !consumeTerm {
+		_, err = k.Seek(-1, io.SeekCurrent)
+	}
+	return slice, err
 }
 
 // ReadStrEOS reads the remaining bytes as a string.
