@@ -201,9 +201,9 @@ func (k *Stream) ReadF8le() (v float64, err error) {
 }
 
 // ReadBytes reads n bytes and returns those as a byte array.
-func (k *Stream) ReadBytes(n int) (b []byte, err error) {
-	b = make([]byte, n)
-	_, err = io.ReadFull(k, b)
+func (k *Stream) ReadBytes(n int) ([]byte, error) {
+	b := make([]byte, n)
+	_, err := io.ReadFull(k, b)
 	return b, err
 }
 
