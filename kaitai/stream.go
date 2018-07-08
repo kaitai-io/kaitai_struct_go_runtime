@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
+	"fmt"
 )
 
 // APIVersion defines the currently used API version.
@@ -202,6 +203,10 @@ func (k *Stream) ReadF8le() (v float64, err error) {
 
 // ReadBytes reads n bytes and returns those as a byte array.
 func (k *Stream) ReadBytes(n int) (b []byte, err error) {
+	if n < 0 {
+		return nil, fmt.Errorf("ReadBytes(%d): negative number of bytes to read", n)
+	}
+
 	b = make([]byte, n)
 	_, err = io.ReadFull(k, b)
 	return b, err
