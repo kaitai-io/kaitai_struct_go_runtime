@@ -4,9 +4,10 @@ language: go
 
 go:
   - "1.10"
+go_import_path: github.com/kaitai-io/kaitai_struct_go_runtime
 
 jobs:
   include:
     - stage: test
-      script: bash tests/setup.sh && bash tests/run.sh
-    - script: bash tests/setup.sh && bash tests/lint.sh
+      script: tests/setup.sh && tests/run.sh
+    - script: tests/setup.sh && tests/lint.sh

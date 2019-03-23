@@ -3,6 +3,14 @@ export GOPATH=$GOPATH:$(pwd)
 TEST_OUT_DIR="test_out"
 ABS_TEST_OUT_DIR="$(pwd)/$TEST_OUT_DIR"
 ABS_REPORT_LOG="$ABS_TEST_OUT_DIR/go/report.log"
+
+rm -rf src
+mkdir src
+cp -r kaitai_struct_tests/spec/go src/spec
+cp -r kaitai_struct_tests/src/* src/
+cp -r ci_targets/compiled/go/src/test_formats src/test_formats
+
+rm -rf "$TEST_OUT_DIR"
 mkdir -p "$TEST_OUT_DIR/go"
 rm -f "$TEST_OUT_DIR/go/build.fails"
 
@@ -10,7 +18,7 @@ keep_compiling=1
 while [ "$keep_compiling" = 1 ]; do
     if go test -v spec >"$ABS_REPORT_LOG" 2>&1; then
         keep_compiling=0
-        cat "$ABS_TEST_OUT_DIR/go/report.log"
+        cat "$ABS_REPORT_LOG"
     else
         echo "Got error:"
         cat "$ABS_REPORT_LOG"
