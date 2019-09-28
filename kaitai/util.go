@@ -68,3 +68,25 @@ func StringReverse(s string) string {
 	}
 	return string(r)
 }
+
+// BytesTerminate terminates the given byte slice using the provided sentinel,
+// optionally including the sentinel itself in the terminated byte slice.
+func BytesTerminate(s []byte, term byte, includeTerm bool) []byte {
+	n, srcLen := 0, len(s)
+	for n < srcLen && s[n] != term {
+		n++
+	}
+	if includeTerm && n < srcLen {
+		n++
+	}
+	return s[:n]
+}
+
+// BytesStripRight strips bytes of a given value off the end of the byte slice.
+func BytesStripRight(s []byte, pad byte) []byte {
+	n := len(s)
+	for n > 0 && s[n-1] == pad {
+		n--
+	}
+	return s[:n]
+}
