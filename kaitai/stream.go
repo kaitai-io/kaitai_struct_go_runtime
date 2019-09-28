@@ -4,10 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"math"
-	"fmt"
 )
 
 // APIVersion defines the currently used API version.
@@ -323,5 +323,5 @@ func (k *Stream) ReadBitsInt(totalBitsNeeded uint8) (val uint64, err error) {
 
 // ReadBitsArray is not implemented yet.
 func (k *Stream) ReadBitsArray(n uint) error {
-	return nil
+	return nil // TODO: implement
 }
