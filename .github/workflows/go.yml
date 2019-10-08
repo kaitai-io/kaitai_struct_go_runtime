@@ -21,3 +21,8 @@ jobs:
 
     - name: Test
       run: go test -v ./...
+
+    - name: Lint
+      run: |
+        GO111MODULE=on go get github.com/golangci/golangci-lint/cmd/golangci-lint@v1.20.0
+        golangci-lint run .
