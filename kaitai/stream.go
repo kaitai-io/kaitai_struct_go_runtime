@@ -300,7 +300,7 @@ func (k *Stream) ReadBitsInt(totalBitsNeeded uint8) (val uint64, err error) {
 
 		// define how many bits should be read
 		readBits := totalBitsNeeded % 8
-		if totalBitsNeeded == 8 {
+		if totalBitsNeeded%8 == 0 {
 			readBits = 8
 		}
 
