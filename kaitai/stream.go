@@ -31,6 +31,9 @@ func NewStream(r io.ReadSeeker) *Stream {
 
 // EOF returns true when the end of the Stream is reached.
 func (k *Stream) EOF() (bool, error) {
+	if k.bitsRemaining > 0 {
+		return false, nil
+	}
 	curPos, err := k.Pos()
 	if err != nil {
 		return false, err
