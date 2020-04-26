@@ -21,7 +21,7 @@ type Stream struct {
 	buf [8]byte
 
 	// Number of bits remaining in buf[0] for sequential calls to ReadBitsInt
-	bitsRemaining uint8
+	bitsLeft uint8
 }
 
 // NewStream creates and initializes a new Buffer based on r.
@@ -31,7 +31,7 @@ func NewStream(r io.ReadSeeker) *Stream {
 
 // EOF returns true when the end of the Stream is reached.
 func (k *Stream) EOF() (bool, error) {
-	if k.bitsRemaining > 0 {
+	if k.bitsLeft > 0 {
 		return false, nil
 	}
 	curPos, err := k.Pos()
@@ -289,7 +289,7 @@ func (k *Stream) ReadStrByteLimit(limit int, encoding string) (string, error) {
 // AlignToByte discards the remaining bits and starts reading bits at the
 // next byte.
 func (k *Stream) AlignToByte() {
-	k.bitsRemaining = 0
+	k.bitsLeft = 0
 }
 
 // ReadBitsInt reads totalBitsNeeded bits and return those as uint64.
@@ -297,9 +297,9 @@ func (k *Stream) ReadBitsInt(totalBitsNeeded uint8) (val uint64, err error) {
 	for totalBitsNeeded > 0 {
 
 		// read next byte into buf
-		if k.bitsRemaining == 0 {
+		if k.bitsLeft == 0 {
 			// FIXME we could optimize the readBits == 8 case here in the future
-			k.bitsRemaining = 8
+			k.bitsLeft = 8
 			_, err = k.Read(k.buf[:1])
 			if err != nil {
 				return val, err
@@ -313,14 +313,14 @@ func (k *Stream) ReadBitsInt(totalBitsNeeded uint8) (val uint64, err error) {
 		}
 
 		// current byte contains all needed bits
-		if readBits < k.bitsRemaining {
-			val = (val << readBits) | uint64(k.buf[0]>>(k.bitsRemaining-readBits))
-			k.bitsRemaining -= readBits
-			k.buf[0] &= (1 << k.bitsRemaining) - 1
+		if readBits < k.bitsLeft {
+			val = (val << readBits) | uint64(k.buf[0]>>(k.bitsLeft-readBits))
+			k.bitsLeft -= readBits
+			k.buf[0] &= (1 << k.bitsLeft) - 1
 			// more bytes are needed
 		} else {
-			readBits = k.bitsRemaining
-			k.bitsRemaining = 0
+			readBits = k.bitsLeft
+			k.bitsLeft = 0
 			val = (val << readBits) | uint64(k.buf[0])
 		}
 
