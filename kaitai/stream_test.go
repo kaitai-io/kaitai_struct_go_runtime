@@ -719,7 +719,7 @@ func TestStream_AlignToByte(t *testing.T) {
 	}
 }
 
-func TestStream_ReadBitsInt(t *testing.T) {
+func TestStream_ReadBitsIntBe(t *testing.T) {
 	type args struct {
 		totalBitsNeeded uint8
 	}
@@ -730,18 +730,19 @@ func TestStream_ReadBitsInt(t *testing.T) {
 		wantVal uint64
 		wantErr bool
 	}{
-		{"ReadBitsInt", NewStream(bytes.NewReader([]byte("test"))), args{8}, 't', false},
-		{"ReadBitsInt", NewStream(bytes.NewReader([]byte{0xFF})), args{2}, 3, false},
+		{"ReadBitsIntBe", NewStream(bytes.NewReader([]byte{0xF0})), args{5}, 0x1E, false},
+		{"ReadBitsIntBe", NewStream(bytes.NewReader([]byte{0x12, 0x34, 0x56, 0xFF})), args{24}, 0x123456, false},
+		{"ReadBitsIntBe", NewStream(bytes.NewReader([]byte{0xAB, 0xC7})), args{12}, 0xABC, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotVal, err := tt.k.ReadBitsInt(tt.args.totalBitsNeeded)
+			gotVal, err := tt.k.ReadBitsIntBe(tt.args.totalBitsNeeded)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Stream.ReadBitsInt() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Stream.ReadBitsIntBe() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if gotVal != tt.wantVal {
-				t.Errorf("Stream.ReadBitsInt() = %v, want %v", gotVal, tt.wantVal)
+				t.Errorf("Stream.ReadBitsIntBe() = %v, want %v", gotVal, tt.wantVal)
 			}
 		})
 	}
@@ -763,6 +764,35 @@ func TestStream_ReadBitsArray(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if err := tt.k.ReadBitsArray(tt.args.n); (err != nil) != tt.wantErr {
 				t.Errorf("Stream.ReadBitsArray() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestStream_ReadBitsIntLe(t *testing.T) {
+	type args struct {
+		n uint8
+	}
+	tests := []struct {
+		name    string
+		k       *Stream
+		args    args
+		wantRes uint64
+		wantErr bool
+	}{
+		{"ReadBitsIntLe", NewStream(bytes.NewReader([]byte{0xF0})), args{5}, 16, false},
+		{"ReadBitsIntLe", NewStream(bytes.NewReader([]byte{0x56, 0x34, 0x12, 0xFF})), args{24}, 0x123456, false},
+		{"ReadBitsIntLe", NewStream(bytes.NewReader([]byte{0xBC, 0x7A})), args{12}, 0xABC, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotRes, err := tt.k.ReadBitsIntLe(tt.args.n)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Stream.ReadBitsIntLe() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if gotRes != tt.wantRes {
+				t.Errorf("Stream.ReadBitsIntLe() = %v, want %v", gotRes, tt.wantRes)
 			}
 		})
 	}
