@@ -292,8 +292,8 @@ func (k *Stream) AlignToByte() {
 	k.bitsLeft = 0
 }
 
-// ReadBitsInt reads n bits and return those as uint64.
-func (k *Stream) ReadBitsInt(n uint8) (res uint64, err error) {
+// ReadBitsIntBe reads n-bit integer in big-endian byte order and returns it as uint64.
+func (k *Stream) ReadBitsIntBe(n uint8) (res uint64, err error) {
 	bitsNeeded := int(n) - int(k.bitsLeft)
 	var bits uint64 = uint64(k.buf[0])
 	if bitsNeeded > 0 {
@@ -302,7 +302,7 @@ func (k *Stream) ReadBitsInt(n uint8) (res uint64, err error) {
 		// 9 bits => 2 bytes
 		bytesNeeded := ((bitsNeeded - 1) / 8) + 1
 		if bytesNeeded > 8 {
-			return res, fmt.Errorf("ReadBitsInt(%d): more than 8 bytes requested", n)
+			return res, fmt.Errorf("ReadBitsIntBe(%d): more than 8 bytes requested", n)
 		}
 		_, err = k.Read(k.buf[:bytesNeeded])
 		if err != nil {
@@ -326,6 +326,13 @@ func (k *Stream) ReadBitsInt(n uint8) (res uint64, err error) {
 	k.buf[0] = byte(bits)
 
 	return res, err
+}
+
+// ReadBitsInt reads n-bit integer in big-endian byte order and returns it as uint64.
+//
+// Deprecated: Use ReadBitsIntBe instead.
+func (k *Stream) ReadBitsInt(n uint8) (res uint64, err error) {
+	return k.ReadBitsIntBe(n)
 }
 
 // ReadBitsArray is not implemented yet.
