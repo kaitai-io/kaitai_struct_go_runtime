@@ -343,7 +343,7 @@ func (k *Stream) ReadBitsInt(n uint8) (res uint64, err error) {
 func (k *Stream) ReadBitsIntLe(n uint8) (res uint64, err error) {
 	bitsNeeded := int(n) - int(k.bitsLeft)
 	var bits uint64 = uint64(k.buf[0])
-	var bitsLeft uint64
+	var bitsLeft uint64 = uint64(k.bitsLeft)
 	if bitsNeeded > 0 {
 		// 1 bit  => 1 byte
 		// 8 bits => 1 byte
@@ -367,7 +367,7 @@ func (k *Stream) ReadBitsIntLe(n uint8) (res uint64, err error) {
 	// derive reading result
 	res = bits & mask
 	// remove bottom bits that we've just read by shifting
-	k.buf[0] = byte(bits) >> n
+	k.buf[0] = byte(bits >> n)
 	k.bitsLeft = uint8(bitsLeft) - n
 
 	return res, err
