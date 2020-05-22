@@ -21,7 +21,7 @@ type Stream struct {
 	buf [8]byte
 
 	// Number of bits remaining in buf[0] for sequential calls to ReadBitsInt
-	bitsRemaining uint8
+	bitsLeft uint8
 }
 
 // NewStream creates and initializes a new Buffer based on r.
@@ -31,7 +31,7 @@ func NewStream(r io.ReadSeeker) *Stream {
 
 // EOF returns true when the end of the Stream is reached.
 func (k *Stream) EOF() (bool, error) {
-	if k.bitsRemaining > 0 {
+	if k.bitsLeft > 0 {
 		return false, nil
 	}
 	curPos, err := k.Pos()
@@ -289,44 +289,43 @@ func (k *Stream) ReadStrByteLimit(limit int, encoding string) (string, error) {
 // AlignToByte discards the remaining bits and starts reading bits at the
 // next byte.
 func (k *Stream) AlignToByte() {
-	k.bitsRemaining = 0
+	k.bitsLeft = 0
 }
 
-// ReadBitsInt reads totalBitsNeeded bits and return those as uint64.
-func (k *Stream) ReadBitsInt(totalBitsNeeded uint8) (val uint64, err error) {
-	for totalBitsNeeded > 0 {
-
-		// read next byte into buf
-		if k.bitsRemaining == 0 {
-			// FIXME we could optimize the readBits == 8 case here in the future
-			k.bitsRemaining = 8
-			_, err = k.Read(k.buf[:1])
-			if err != nil {
-				return val, err
-			}
+// ReadBitsInt reads n bits and return those as uint64.
+func (k *Stream) ReadBitsInt(n uint8) (res uint64, err error) {
+	bitsNeeded := int(n) - int(k.bitsLeft)
+	var bits uint64 = uint64(k.buf[0])
+	if bitsNeeded > 0 {
+		// 1 bit  => 1 byte
+		// 8 bits => 1 byte
+		// 9 bits => 2 bytes
+		bytesNeeded := ((bitsNeeded - 1) / 8) + 1
+		if bytesNeeded > 8 {
+			return res, fmt.Errorf("ReadBitsInt(%d): more than 8 bytes requested", n)
 		}
-
-		// define how many bits should be read
-		readBits := totalBitsNeeded % 8
-		if readBits == 0 {
-			readBits = 8
+		_, err = k.Read(k.buf[:bytesNeeded])
+		if err != nil {
+			return res, err
 		}
-
-		// current byte contains all needed bits
-		if readBits < k.bitsRemaining {
-			val = (val << readBits) | uint64(k.buf[0]>>(k.bitsRemaining-readBits))
-			k.bitsRemaining -= readBits
-			k.buf[0] &= (1 << k.bitsRemaining) - 1
-			// more bytes are needed
-		} else {
-			readBits = k.bitsRemaining
-			k.bitsRemaining = 0
-			val = (val << readBits) | uint64(k.buf[0])
+		for i := 0; i < bytesNeeded; i++ {
+			bits <<= 8
+			bits |= uint64(k.buf[i])
+			k.bitsLeft += 8
 		}
-
-		totalBitsNeeded -= readBits
 	}
-	return val, nil
+	// raw mask with required number of 1s, starting from lowest bit
+	var mask uint64 = (1 << n) - 1
+	// shift "bits" to align the highest bits with the mask & derive the result
+	shiftBits := k.bitsLeft - n
+	res = (bits >> shiftBits) & mask
+	// clear top bits that we've just read => AND with 1s
+	k.bitsLeft -= n
+	mask = (1 << k.bitsLeft) - 1
+	bits &= mask
+	k.buf[0] = byte(bits)
+
+	return res, err
 }
 
 // ReadBitsArray is not implemented yet.
