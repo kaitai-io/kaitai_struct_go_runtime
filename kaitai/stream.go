@@ -258,7 +258,10 @@ func (k *Stream) ReadBytesTerm(term byte, includeTerm, consumeTerm, eosError boo
 	if err != nil && (err != io.EOF || eosError) {
 		return slice, err
 	}
-	k.Seek(pos+int64(len(slice)), io.SeekStart)
+	_, err = k.Seek(pos+int64(len(slice)), io.SeekStart)
+	if err != nil {
+		return []byte{}, err
+	}
 	if !includeTerm {
 		slice = slice[:len(slice)-1]
 	}
