@@ -251,14 +251,14 @@ func (k *Stream) ReadBytesTerm(term byte, includeTerm, consumeTerm, eosError boo
 	r := bufio.NewReader(k)
 	pos, err := k.Pos()
 	if err != nil {
-		return []byte {}, err
+		return []byte{}, err
 	}
 	slice, err := r.ReadBytes(term)
 
 	if err != nil && (err != io.EOF || eosError) {
 		return slice, err
 	}
-	k.Seek(pos + int64(len(slice)), io.SeekStart)
+	k.Seek(pos+int64(len(slice)), io.SeekStart)
 	if !includeTerm {
 		slice = slice[:len(slice)-1]
 	}
@@ -314,6 +314,7 @@ func (k *Stream) ReadBitsIntBe(n uint8) (res uint64, err error) {
 			k.bitsLeft += 8
 		}
 	}
+
 	// raw mask with required number of 1s, starting from lowest bit
 	var mask uint64 = (1 << n) - 1
 	// shift "bits" to align the highest bits with the mask & derive the result
@@ -333,6 +334,40 @@ func (k *Stream) ReadBitsIntBe(n uint8) (res uint64, err error) {
 // Deprecated: Use ReadBitsIntBe instead.
 func (k *Stream) ReadBitsInt(n uint8) (res uint64, err error) {
 	return k.ReadBitsIntBe(n)
+}
+
+// ReadBitsIntLe reads n-bit integer in little-endian byte order and returns it as uint64.
+func (k *Stream) ReadBitsIntLe(n uint8) (res uint64, err error) {
+	bitsNeeded := int(n) - int(k.bitsLeft)
+	var bits uint64 = uint64(k.buf[0])
+	var bitsLeft uint64
+	if bitsNeeded > 0 {
+		// 1 bit  => 1 byte
+		// 8 bits => 1 byte
+		// 9 bits => 2 bytes
+		bytesNeeded := ((bitsNeeded - 1) / 8) + 1
+		if bytesNeeded > 8 {
+			return res, fmt.Errorf("ReadBitsIntLe(%d): more than 8 bytes requested", n)
+		}
+		_, err = k.Read(k.buf[:bytesNeeded])
+		if err != nil {
+			return res, err
+		}
+		for i := 0; i < bytesNeeded; i++ {
+			bits |= uint64(k.buf[i]) << bitsLeft
+			bitsLeft += 8
+		}
+	}
+
+	// raw mask with required number of 1s, starting from lowest bit
+	var mask uint64 = (1 << n) - 1
+	// derive reading result
+	res = bits & mask
+	// remove bottom bits that we've just read by shifting
+	k.buf[0] = byte(bits) >> n
+	k.bitsLeft = uint8(bitsLeft) - n
+
+	return res, err
 }
 
 // ReadBitsArray is not implemented yet.
