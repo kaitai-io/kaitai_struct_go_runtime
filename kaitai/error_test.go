@@ -3,7 +3,6 @@ package kaitai
 import (
 	"bytes"
 	"io"
-	"reflect"
 	"testing"
 )
 
@@ -143,7 +142,7 @@ func TestValidationNotEqualError_Expected(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.e.Expected(); !reflect.DeepEqual(got, tt.want) {
+			if got := tt.e.Expected(); got != tt.want {
 				t.Errorf("ValidationNotEqualError.Expected() = %v, want %v", got, tt.want)
 			}
 		})
@@ -189,7 +188,7 @@ func TestValidationLessThanError_Min(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.e.Min(); !reflect.DeepEqual(got, tt.want) {
+			if got := tt.e.Min(); got != tt.want {
 				t.Errorf("ValidationLessThanError.Min() = %v, want %v", got, tt.want)
 			}
 		})
@@ -235,7 +234,7 @@ func TestValidationGreaterThanError_Max(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.e.Max(); !reflect.DeepEqual(got, tt.want) {
+			if got := tt.e.Max(); got != tt.want {
 				t.Errorf("ValidationGreaterThanError.Max() = %v, want %v", got, tt.want)
 			}
 		})
