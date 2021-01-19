@@ -63,19 +63,17 @@ func (k *Stream) Size() (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	// Deferred Seek back to the current position
+	defer k.Seek(curPos, io.SeekStart)
+
 	// Seek to the end of the File object
 	_, err = k.Seek(0, io.SeekEnd)
 	if err != nil {
 		return 0, err
 	}
-	// Remember position, which is equal to the full length
-	fullSize, err := k.Pos()
-	if err != nil {
-		return fullSize, err
-	}
-	// Seek back to the current position
-	_, err = k.Seek(curPos, io.SeekStart)
-	return fullSize, err
+
+	// Return the current position, which is equal to the full length
+	return k.Pos()
 }
 
 // Pos returns the current position of the stream.

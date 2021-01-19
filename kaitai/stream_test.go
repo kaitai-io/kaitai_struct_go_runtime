@@ -2,6 +2,7 @@ package kaitai
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"reflect"
 	"testing"
@@ -59,6 +60,7 @@ func TestStream_Size(t *testing.T) {
 		wantErr bool
 	}{
 		{"Size", NewStream(bytes.NewReader([]byte("test"))), 4, false},
+		{"Zero size", NewStream(bytes.NewReader([]byte{})), 0, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -71,6 +73,42 @@ func TestStream_Size(t *testing.T) {
 				t.Errorf("Stream.Size() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+const initialPosition = 5
+
+type failingReader struct {
+	pos int64
+}
+
+func (fr *failingReader) Read(p []byte) (n int, err error) { return 0, nil }
+func (fr *failingReader) Seek(offset int64, whence int) (int64, error) {
+	switch {
+	case whence == io.SeekCurrent && fr.pos != initialPosition:
+		return 0, errors.New("not allowed to seek to the current pos")
+	case whence == io.SeekCurrent:
+		return fr.pos, nil
+	case whence == io.SeekStart:
+		fr.pos = offset
+	default:
+		fr.pos++
+	}
+	return fr.pos, nil
+}
+
+// No regression test for issue #26
+func TestErrorHandlingInStream_Size(t *testing.T) {
+	fr := &failingReader{initialPosition}
+	s := NewStream(fr)
+	_, err := s.Size()
+
+	if err == nil {
+		t.Fatal("Expected error, got nothing")
+	}
+
+	if fr.pos != initialPosition {
+		t.Fatalf("Expected position to be %v, got %v", initialPosition, fr.pos)
 	}
 }
 
