@@ -2,7 +2,6 @@ package kaitai
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"reflect"
 	"testing"
@@ -76,7 +75,11 @@ func TestStream_Size(t *testing.T) {
 	}
 }
 
-const initialPosition = 5
+type artificialError struct{}
+
+func (e artificialError) Error() string {
+	return "artificial error when seeking with io.SeekCurrent after seeking to end"
+}
 
 type failingReader struct {
 	pos int64
@@ -85,26 +88,32 @@ type failingReader struct {
 func (fr *failingReader) Read(p []byte) (n int, err error) { return 0, nil }
 func (fr *failingReader) Seek(offset int64, whence int) (int64, error) {
 	switch {
-	case whence == io.SeekCurrent && fr.pos != initialPosition:
-		return 0, errors.New("not allowed to seek to the current pos")
+	case whence == io.SeekCurrent && fr.pos == -1:
+		return 0, artificialError{} // returns an artificial error to simulate seeking error
 	case whence == io.SeekCurrent:
 		return fr.pos, nil
 	case whence == io.SeekStart:
 		fr.pos = offset
 	default:
-		fr.pos++
+		fr.pos = -1
 	}
 	return fr.pos, nil
 }
 
 // No regression test for issue #26
 func TestErrorHandlingInStream_Size(t *testing.T) {
+	const initialPosition = 5
 	fr := &failingReader{initialPosition}
 	s := NewStream(fr)
 	_, err := s.Size()
 
 	if err == nil {
 		t.Fatal("Expected error, got nothing")
+	}
+
+	_, isArtificialErr := err.(artificialError)
+	if !isArtificialErr {
+		t.Fatalf("Expected error of type %T, got one of type %T", artificialError{}, err)
 	}
 
 	if fr.pos != initialPosition {
