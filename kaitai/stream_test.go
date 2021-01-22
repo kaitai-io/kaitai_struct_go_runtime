@@ -94,7 +94,7 @@ func (fr *failingReader) Seek(offset int64, whence int) (int64, error) {
 		return fr.pos, nil
 	case whence == io.SeekStart:
 		fr.pos = offset
-	default:
+	default: // whence == io.SeekEnd
 		fr.pos = -1
 	}
 	return fr.pos, nil
