@@ -165,7 +165,6 @@ func TestErrorHandlingInStream_Size(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestStream_Pos(t *testing.T) {
