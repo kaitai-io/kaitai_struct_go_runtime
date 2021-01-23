@@ -55,7 +55,7 @@ func (k *Stream) EOF() (bool, error) {
 }
 
 // Size returns the number of bytes of the stream.
-func (k *Stream) Size() (int64, error) {
+func (k *Stream) Size() (size int64, err error) {
 	// Go has no internal ReadSeeker function to get current ReadSeeker size,
 	// thus we use the following trick.
 	// Remember our current position
@@ -64,8 +64,11 @@ func (k *Stream) Size() (int64, error) {
 		return 0, err
 	}
 	// Deferred Seek back to the current position
-	defer k.Seek(curPos, io.SeekStart)
-
+	defer func() {
+		if _, serr := k.Seek(curPos, io.SeekStart); serr != nil {
+			err = fmt.Errorf("failed to seek to the initial position %v: %w", curPos, serr)
+		}
+	}()
 	// Seek to the end of the File object
 	_, err = k.Seek(0, io.SeekEnd)
 	if err != nil {

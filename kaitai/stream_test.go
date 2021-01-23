@@ -58,8 +58,8 @@ func TestStream_Size(t *testing.T) {
 		want    int64
 		wantErr bool
 	}{
-		{"Size", NewStream(bytes.NewReader([]byte("test"))), 4, false},
 		{"Zero size", NewStream(bytes.NewReader([]byte{})), 0, false},
+		{"Small size", NewStream(bytes.NewReader([]byte("test"))), 4, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -82,43 +82,90 @@ func (e artificialError) Error() string {
 }
 
 type failingReader struct {
-	pos int64
+	pos      int64
+	mustFail func(fr failingReader, offset int64, whence int) bool
 }
 
 func (fr *failingReader) Read(p []byte) (n int, err error) { return 0, nil }
 func (fr *failingReader) Seek(offset int64, whence int) (int64, error) {
+	if fr.mustFail(*fr, offset, whence) {
+		return 0, artificialError{}
+	}
+
 	switch {
-	case whence == io.SeekCurrent && fr.pos == -1:
-		return 0, artificialError{} // returns an artificial error to simulate seeking error
 	case whence == io.SeekCurrent:
 		return fr.pos, nil
 	case whence == io.SeekStart:
 		fr.pos = offset
-	default:
+	default: // whence == io.SeekEnd
 		fr.pos = -1
 	}
+
 	return fr.pos, nil
 }
 
 // No regression test for issue #26
 func TestErrorHandlingInStream_Size(t *testing.T) {
-	const initialPosition = 5
-	fr := &failingReader{initialPosition}
-	s := NewStream(fr)
-	_, err := s.Size()
+	tests := map[string]struct {
+		initialPos       int64
+		failingCondition func(fr failingReader, offset int64, whence int) bool
+		errorCheck       func(err error) bool
+		wantFinalPos     int64
+	}{
+		"fails to get initial position": {
+			initialPos: 5,
+			failingCondition: func(fr failingReader, offset int64, whence int) bool {
+				return whence == io.SeekCurrent && offset == 0
+			},
+			errorCheck: func(err error) bool {
+				_, ok := err.(artificialError)
+				return ok
+			},
+			wantFinalPos: 5,
+		},
+		"seek to the end fails": {
+			initialPos: 5,
+			failingCondition: func(fr failingReader, offset int64, whence int) bool {
+				return whence == io.SeekEnd
+			},
+			errorCheck: func(err error) bool {
+				_, ok := err.(artificialError)
+				return ok
+			},
+			wantFinalPos: 5,
+		},
+		"deferred seek to the initial pos fails": {
+			initialPos: 5,
+			failingCondition: func(fr failingReader, offset int64, whence int) bool {
+				return whence == io.SeekStart && fr.pos == -1
+			},
+			errorCheck: func(err error) bool {
+				_, ok := err.(artificialError)
+				return !ok
+			},
+			wantFinalPos: -1,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			fr := &failingReader{tt.initialPos, tt.failingCondition}
+			s := NewStream(fr)
+			_, err := s.Size()
 
-	if err == nil {
-		t.Fatal("Expected error, got nothing")
+			if err == nil {
+				t.Fatal("Expected error, got nothing")
+			}
+
+			if !tt.errorCheck(err) {
+				t.Fatalf("Expected error of type %T, got one of type %T", artificialError{}, err)
+			}
+
+			if fr.pos != tt.wantFinalPos {
+				t.Fatalf("Expected position to be %v, got %v", tt.wantFinalPos, fr.pos)
+			}
+		})
 	}
 
-	_, isArtificialErr := err.(artificialError)
-	if !isArtificialErr {
-		t.Fatalf("Expected error of type %T, got one of type %T", artificialError{}, err)
-	}
-
-	if fr.pos != initialPosition {
-		t.Fatalf("Expected position to be %v, got %v", initialPosition, fr.pos)
-	}
 }
 
 func TestStream_Pos(t *testing.T) {
