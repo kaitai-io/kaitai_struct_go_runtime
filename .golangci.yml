@@ -1,22 +1,32 @@
+# https://github.com/golangci/golangci-lint/blob/v1.44.0/.golangci.example.yml#L1540-L1628
 linters:
-  # please, do not use `enable-all`: it's deprecated and will be removed soon.
-  # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint
+  # Disable all linters.
   disable-all: true
+  # Enable specific linter
+  # https://golangci-lint.run/usage/linters/#enabled-by-default-linters
   enable:
     - asciicheck
+    - bidichk
     - bodyclose
+    - contextcheck
+    - cyclop
     - deadcode
     # - depguard
     - dogsled
     - dupl
+    - durationcheck
     - errcheck
+    - errname
     - errorlint
     - exhaustive
     # - exhaustivestruct
     - exportloopref
     - forbidigo
+    - forcetypeassert
     - funlen
     - gci
+    - gochecknoglobals
+    - gochecknoinits
     # - gocognit
     - goconst
     - gocritic
@@ -27,33 +37,40 @@ linters:
     - gofmt
     # - gofumpt
     # - goheader
-    - gochecknoglobals
-    - gochecknoinits
     # - goimports
-    - golint
     # - gomnd
+    - gomoddirectives
     # - gomodguard
     # - goprintffuncname
     - gosec
     - gosimple
     - govet
+    - ifshort
+    - importas
     - ineffassign
+    - ireturn
     - lll
     - makezero
-    # - maligned
     - misspell
     - nakedret
     # - nestif
+    - nilerr
+    - nilnil
     # - nlreturn
     - noctx
     - nolintlint
     # - paralleltest
     - prealloc
     - predeclared
-    - scopelint
+    - promlinter
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
     - staticcheck
     - structcheck
     - stylecheck
+    - tagliatelle
+    - tenv
     # - testpackage
     - thelper
     - tparallel
@@ -62,6 +79,8 @@ linters:
     - unparam
     - unused
     - varcheck
+    # - varnamelen
+    - wastedassign
     - whitespace
     - wrapcheck
     # - wsl
