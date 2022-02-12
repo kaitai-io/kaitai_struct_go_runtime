@@ -21,7 +21,7 @@ type Stream struct {
 	buf [8]byte
 
 	// Number of bits remaining in "bits" for sequential calls to ReadBitsInt
-	bitsLeft uint8
+	bitsLeft int
 	bits     uint64
 }
 
@@ -297,13 +297,17 @@ func (k *Stream) AlignToByte() {
 }
 
 // ReadBitsIntBe reads n-bit integer in big-endian byte order and returns it as uint64.
-func (k *Stream) ReadBitsIntBe(n uint8) (res uint64, err error) {
-	bitsNeeded := int(n) - int(k.bitsLeft)
+func (k *Stream) ReadBitsIntBe(n int) (res uint64, err error) {
+	res = 0
+
+	bitsNeeded := n - k.bitsLeft
+	k.bitsLeft = -bitsNeeded & 7 // `-bitsNeeded mod 8`
+
 	if bitsNeeded > 0 {
 		// 1 bit  => 1 byte
 		// 8 bits => 1 byte
 		// 9 bits => 2 bytes
-		bytesNeeded := ((bitsNeeded - 1) / 8) + 1
+		bytesNeeded := ((bitsNeeded - 1) / 8) + 1 // `ceil(bitsNeeded / 8)`
 		if bytesNeeded > 8 {
 			return res, fmt.Errorf("ReadBitsIntBe(%d): more than 8 bytes requested", n)
 		}
@@ -312,20 +316,17 @@ func (k *Stream) ReadBitsIntBe(n uint8) (res uint64, err error) {
 			return res, err
 		}
 		for i := 0; i < bytesNeeded; i++ {
-			k.bits <<= 8
-			k.bits |= uint64(k.buf[i])
-			k.bitsLeft += 8
+			res = res<<8 | uint64(k.buf[i])
 		}
+
+		newBits := res
+		res = res>>k.bitsLeft | k.bits<<bitsNeeded
+		k.bits = newBits // will be masked at the end of the function
+	} else {
+		res = k.bits >> -bitsNeeded // shift unneeded bits out
 	}
 
-	// raw mask with required number of 1s, starting from lowest bit
-	var mask uint64 = (1 << n) - 1
-	// shift "bits" to align the highest bits with the mask & derive the result
-	shiftBits := k.bitsLeft - n
-	res = (k.bits >> shiftBits) & mask
-	// clear top bits that we've just read => AND with 1s
-	k.bitsLeft -= n
-	mask = (1 << k.bitsLeft) - 1
+	var mask uint64 = (1 << k.bitsLeft) - 1 // `bitsLeft` is in range 0..7
 	k.bits &= mask
 
 	return res, err
@@ -335,18 +336,19 @@ func (k *Stream) ReadBitsIntBe(n uint8) (res uint64, err error) {
 //
 // Deprecated: Use ReadBitsIntBe instead.
 func (k *Stream) ReadBitsInt(n uint8) (res uint64, err error) {
-	return k.ReadBitsIntBe(n)
+	return k.ReadBitsIntBe(int(n))
 }
 
 // ReadBitsIntLe reads n-bit integer in little-endian byte order and returns it as uint64.
-func (k *Stream) ReadBitsIntLe(n uint8) (res uint64, err error) {
-	bitsNeeded := int(n) - int(k.bitsLeft)
-	var bitsLeft uint64 = uint64(k.bitsLeft)
+func (k *Stream) ReadBitsIntLe(n int) (res uint64, err error) {
+	res = 0
+	bitsNeeded := n - k.bitsLeft
+
 	if bitsNeeded > 0 {
 		// 1 bit  => 1 byte
 		// 8 bits => 1 byte
 		// 9 bits => 2 bytes
-		bytesNeeded := ((bitsNeeded - 1) / 8) + 1
+		bytesNeeded := ((bitsNeeded - 1) / 8) + 1 // `ceil(bitsNeeded / 8)`
 		if bytesNeeded > 8 {
 			return res, fmt.Errorf("ReadBitsIntLe(%d): more than 8 bytes requested", n)
 		}
@@ -355,19 +357,21 @@ func (k *Stream) ReadBitsIntLe(n uint8) (res uint64, err error) {
 			return res, err
 		}
 		for i := 0; i < bytesNeeded; i++ {
-			k.bits |= uint64(k.buf[i]) << bitsLeft
-			bitsLeft += 8
+			res |= uint64(k.buf[i]) << (i * 8)
 		}
+
+		newBits := res >> bitsNeeded
+		res = res<<k.bitsLeft | k.bits
+		k.bits = newBits
+	} else {
+		res = k.bits
+		k.bits >>= n
 	}
 
-	// raw mask with required number of 1s, starting from lowest bit
-	var mask uint64 = (1 << n) - 1
-	// derive reading result
-	res = k.bits & mask
-	// remove bottom bits that we've just read by shifting
-	k.bits >>= n
-	k.bitsLeft = uint8(bitsLeft) - n
+	k.bitsLeft = -bitsNeeded & 7 // `-bitsNeeded mod 8`
 
+	var mask uint64 = (1 << n) - 1 // unlike some other languages, no problem with this in Go
+	res &= mask
 	return res, err
 }
 

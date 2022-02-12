@@ -721,7 +721,7 @@ func TestStream_AlignToByte(t *testing.T) {
 
 func TestStream_ReadBitsIntBe(t *testing.T) {
 	type args struct {
-		totalBitsNeeded uint8
+		totalBitsNeeded int
 	}
 	tests := []struct {
 		name    string
@@ -771,7 +771,7 @@ func TestStream_ReadBitsArray(t *testing.T) {
 
 func TestStream_ReadBitsIntLe(t *testing.T) {
 	type args struct {
-		n uint8
+		n int
 	}
 	tests := []struct {
 		name    string
