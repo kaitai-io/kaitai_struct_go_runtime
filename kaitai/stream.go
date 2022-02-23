@@ -294,6 +294,7 @@ func (k *Stream) ReadStrByteLimit(limit int, encoding string) (string, error) {
 // next byte.
 func (k *Stream) AlignToByte() {
 	k.bitsLeft = 0
+	k.bits = 0
 }
 
 // ReadBitsIntBe reads n-bit integer in big-endian byte order and returns it as uint64.

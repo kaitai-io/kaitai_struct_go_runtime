@@ -706,15 +706,53 @@ func TestStream_ReadStrByteLimit(t *testing.T) {
 }
 
 func TestStream_AlignToByte(t *testing.T) {
+	type bitInt struct {
+		bits           int
+		want           uint64
+		isLittleEndian bool
+	}
 	tests := []struct {
-		name string
-		k    *Stream
+		name   string
+		k      *Stream
+		fields [2]bitInt // AlignToByte will be called between fields[0] and fields[1]
 	}{
-		{"AlignToByte", NewStream(bytes.NewReader([]byte{0xFF}))},
+		{"ReadBitsIntBe", NewStream(bytes.NewReader([]byte{0b111100_11, 0b0101_0000})), [2]bitInt{
+			{6, 0b111100, false},
+			// should skip 2 bits (0b11)
+			{4, 0b0101, false},
+		}},
+		{"ReadBitsIntLe", NewStream(bytes.NewReader([]byte{0b11_001111, 0b0000_1010})), [2]bitInt{
+			{6, 0b001111, true},
+			// should skip 2 bits (0b11)
+			{4, 0b1010, true},
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.k.AlignToByte()
+			for i, v := range tt.fields {
+				if i == 1 {
+					tt.k.AlignToByte()
+				}
+				var gotVal uint64
+				var err error
+				var methodName string
+				if v.isLittleEndian {
+					methodName = /**/ "ReadBitsIntLe"
+					gotVal, err = tt.k.ReadBitsIntLe(v.bits)
+				} else {
+					methodName = /**/ "ReadBitsIntBe"
+					gotVal, err = tt.k.ReadBitsIntBe(v.bits)
+				}
+				if err != nil {
+					t.Errorf("fields[%v]: Stream.%s(%v) error = %#v", i, methodName, v.bits, err)
+					return
+				}
+				if gotVal != v.want {
+					t.Errorf(
+						"fields[%v]: Stream.%s(%v) = 0b%0*b, want 0b%0*b", i, methodName, v.bits,
+						v.bits, gotVal, v.bits, v.want)
+				}
+			}
 		})
 	}
 }
