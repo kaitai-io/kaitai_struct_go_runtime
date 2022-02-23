@@ -748,27 +748,6 @@ func TestStream_ReadBitsIntBe(t *testing.T) {
 	}
 }
 
-func TestStream_ReadBitsArray(t *testing.T) {
-	type args struct {
-		n uint
-	}
-	tests := []struct {
-		name    string
-		k       *Stream
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := tt.k.ReadBitsArray(tt.args.n); (err != nil) != tt.wantErr {
-				t.Errorf("Stream.ReadBitsArray() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
 func TestStream_ReadBitsIntLe(t *testing.T) {
 	type args struct {
 		n int
@@ -793,6 +772,27 @@ func TestStream_ReadBitsIntLe(t *testing.T) {
 			}
 			if gotRes != tt.wantRes {
 				t.Errorf("Stream.ReadBitsIntLe() = %v, want %v", gotRes, tt.wantRes)
+			}
+		})
+	}
+}
+
+func TestStream_ReadBitsArray(t *testing.T) {
+	type args struct {
+		n uint
+	}
+	tests := []struct {
+		name    string
+		k       *Stream
+		args    args
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.k.ReadBitsArray(tt.args.n); (err != nil) != tt.wantErr {
+				t.Errorf("Stream.ReadBitsArray() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
