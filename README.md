@@ -1,7 +1,7 @@
 # Kaitai Struct: runtime library for Go
 
 [![Pipeline](https://github.com/kaitai-io/kaitai_struct_go_runtime/workflows/Go/badge.svg)](https://github.com/kaitai-io/kaitai_struct_go_runtime/actions)
-[![GoDoc](https://godoc.org/github.com/kaitai-io/kaitai_struct_go_runtime/kaitai?status.svg)](https://godoc.org/github.com/kaitai-io/kaitai_struct_go_runtime/kaitai)
+[![Go Reference](https://pkg.go.dev/badge/github.com/kaitai-io/kaitai_struct_go_runtime/kaitai.svg)](https://pkg.go.dev/github.com/kaitai-io/kaitai_struct_go_runtime/kaitai)
 [![Go Report Card](https://goreportcard.com/badge/github.com/kaitai-io/kaitai_struct_go_runtime)](https://goreportcard.com/report/github.com/kaitai-io/kaitai_struct_go_runtime)
 
 This library implements Kaitai Struct API for Go.
