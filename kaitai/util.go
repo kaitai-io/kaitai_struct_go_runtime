@@ -5,6 +5,7 @@ import (
 	"compress/zlib"
 	"io/ioutil"
 	"math/bits"
+	"strings"
 
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/transform"
@@ -58,6 +59,13 @@ func BytesToStr(in []byte, decoder *encoding.Decoder) (string, error) {
 		return "", e
 	}
 	return string(d), nil
+}
+
+// StrToBytes returns a bytes encoded by the given encoder.
+func StrToBytes(in string, encoder *encoding.Encoder) ([]byte, error) {
+	i := strings.NewReader(in)
+	o := transform.NewReader(i, encoder)
+	return ioutil.ReadAll(o)
 }
 
 // StringReverse returns the string s in reverse order.
