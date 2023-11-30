@@ -13,16 +13,21 @@ import (
 // APIVersion defines the currently used API version.
 const APIVersion = 0x0001
 
+type Stream Reader
+
 // A Stream represents a sequence of bytes. It encapsulates reading from files
 // and memory, stores pointer to its current position, and allows
 // reading/writing of various primitives.
-type Stream struct {
+type Reader struct {
 	io.ReadSeeker
 	buf [8]byte
 
 	// Number of bits remaining in "bits" for sequential calls to ReadBitsInt
 	bitsLeft int
 	bits     uint64
+
+	childStreams     []*Stream
+	writebackHandler *WriteBackHandler
 }
 
 // NewStream creates and initializes a new Buffer based on r.
@@ -379,4 +384,74 @@ func (k *Stream) ReadBitsIntLe(n int) (res uint64, err error) {
 // ReadBitsArray is not implemented yet.
 func (k *Stream) ReadBitsArray(n uint) error {
 	return nil // TODO: implement
+}
+
+func (k *Stream) ToByteArray() ([]byte, error) {
+	pos, err := k.Pos()
+	if err != nil {
+		return nil, err
+	}
+	_, err = k.Seek(0, io.SeekStart)
+	if err != nil {
+		return nil, err
+	}
+	b, err := k.ReadBytesFull()
+	if err != nil {
+		return nil, err
+	}
+	_, err = k.Seek(pos, io.SeekStart)
+	return b, err
+}
+
+func (k *Stream) WriteBackChildStreams() error {
+	return k.writeBackChildStreams(nil)
+}
+
+func (k *Stream) writeBackChildStreams(parent *Stream) error {
+	pos, err := k.Pos()
+	if err != nil {
+		return err
+	}
+	for _, child := range k.childStreams {
+		child.writeBackChildStreams(k)
+	}
+	k.childStreams = k.childStreams[:0]
+	_, err = k.Seek(pos, io.SeekStart)
+	if err != nil {
+		return err
+	}
+	if parent != nil {
+		k.writeback(parent)
+	}
+
+	return nil
+}
+
+func (k *Stream) writeback(parent *Stream) error {
+	return k.writebackHandler.writeBack(parent)
+}
+
+type WriteBackHandler struct {
+	pos int64
+}
+
+func (h *WriteBackHandler) writeBack(parent *Stream) error {
+	_, err := parent.Seek(h.pos, io.SeekStart)
+	if err != nil {
+		return err
+	}
+	return h.write(parent)
+}
+
+func (h *WriteBackHandler) write(parent *Stream) error {
+	// TODO: in java this is an abs method, need impl yet
+	return nil
+}
+
+func (k *Stream) AddChildStream(child *Stream) {
+	k.childStreams = append(k.childStreams, child)
+}
+
+func (rw *Stream) Write() error {
+	return rw.WriteBackChildStreams()
 }

@@ -3,7 +3,7 @@ package kaitai
 import (
 	"bytes"
 	"compress/zlib"
-	"io/ioutil"
+	"io"
 	"math/bits"
 	"strings"
 
@@ -47,14 +47,27 @@ func ProcessZlib(in []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	return ioutil.ReadAll(r)
+	return io.ReadAll(r)
+}
+
+func UnprocessZlib(in []byte) ([]byte, error) {
+	w := zlib.NewWriter(bytes.NewBuffer(in))
+	defer w.Close()
+
+	var out bytes.Buffer
+	_, err := w.Write(in)
+	if err != nil {
+		return nil, err
+	}
+
+	return out.Bytes(), nil
 }
 
 // BytesToStr returns a string decoded by the given decoder.
 func BytesToStr(in []byte, decoder *encoding.Decoder) (string, error) {
 	i := bytes.NewReader(in)
 	o := transform.NewReader(i, decoder)
-	d, e := ioutil.ReadAll(o)
+	d, e := io.ReadAll(o)
 	if e != nil {
 		return "", e
 	}
@@ -65,7 +78,7 @@ func BytesToStr(in []byte, decoder *encoding.Decoder) (string, error) {
 func StrToBytes(in string, encoder *encoding.Encoder) ([]byte, error) {
 	i := strings.NewReader(in)
 	o := transform.NewReader(i, encoder)
-	return ioutil.ReadAll(o)
+	return io.ReadAll(o)
 }
 
 // StringReverse returns the string s in reverse order.
@@ -97,4 +110,17 @@ func BytesStripRight(s []byte, pad byte) []byte {
 		n--
 	}
 	return s[:n]
+}
+
+func ByteArrayCompare(a []byte, b []byte) int {
+	return bytes.Compare(a, b)
+}
+
+func ByteArrayIndexof(arr []byte, b byte) int {
+	for i := 0; i < len(arr); i++ {
+		if arr[i] == b {
+			return i
+		}
+	}
+	return -1
 }

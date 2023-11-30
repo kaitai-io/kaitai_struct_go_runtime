@@ -53,6 +53,10 @@ func validationFailedMsg(msg string) string {
 	return "validation failed: " + msg
 }
 
+func checkFailedMsg(msg string) string {
+	return "check failed: " + msg
+}
+
 // ValidationNotEqualError signals validation failure: we required "Actual" value
 // to be equal to "Expected", but it turned out that it's not.
 type ValidationNotEqualError struct {
@@ -195,5 +199,23 @@ func (e ValidationExprError) Error() string {
 		validationFailedMsg(
 			fmt.Sprintf("not matching the expression, got %v", e.actual),
 		),
+	)
+}
+
+type ConsistencyError struct {
+	id       string
+	actual   interface{}
+	expected interface{}
+}
+
+func NewConsistencyError(id string, actual interface{}, expected interface{}) ConsistencyError {
+	return ConsistencyError{
+		id, actual, expected,
+	}
+}
+
+func (e ConsistencyError) Error() string {
+	return checkFailedMsg(
+		fmt.Sprintf("%s, expected %v, actual: %v", e.id, e.expected, e.actual),
 	)
 }
