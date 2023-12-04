@@ -53,7 +53,10 @@ func (k *Stream) writeBackChildStreams(parent *Stream) error {
 		return err
 	}
 	for _, child := range k.childStreams {
-		child.writeBackChildStreams(k)
+		err = child.writeBackChildStreams(k)
+		if err != nil {
+			return err
+		}
 	}
 	k.childStreams = k.childStreams[:0]
 	_, err = k.Seek(pos, io.SeekStart)
@@ -61,10 +64,14 @@ func (k *Stream) writeBackChildStreams(parent *Stream) error {
 		return err
 	}
 	if parent != nil {
-		k.writeback(parent)
+		err = k.writeback(parent)
 	}
 
-	return nil
+	return err
+}
+
+func (k *Stream) SetWriteBackHandler(handler *WriteBackHandler) {
+	k.writebackHandler = handler
 }
 
 func (k *Stream) writeback(parent *Stream) error {
@@ -108,6 +115,12 @@ func (ss *ReadWriteStream) WriteSeq() error {
 type WriteBackHandler struct {
 	pos     int64
 	handler func(*Stream) error
+}
+
+func NewWriteBackHandler(pos int64, handler func(*Stream) error) *WriteBackHandler {
+	return &WriteBackHandler{
+		pos, handler,
+	}
 }
 
 func (h *WriteBackHandler) writeBack(parent *Stream) error {
