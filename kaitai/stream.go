@@ -79,6 +79,9 @@ func (k *Stream) writeback(parent *Stream) error {
 }
 
 func (k *Stream) AddChildStream(child *Stream) {
+	if child.Writer == nil {
+		child.Writer = k.Writer
+	}
 	k.childStreams = append(k.childStreams, child)
 }
 
