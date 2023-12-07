@@ -22,3 +22,50 @@ func (h *WriteBackHandler) writeBack(parent *Stream) error {
 	}
 	return h.handler(parent)
 }
+
+type ReadWriteTrait interface {
+	FetchInstances() error
+	WriteSeq() error
+}
+
+type ReadWriteStream struct {
+	Stream
+
+	FetchInstance func() error
+	WriteSeq      func() error
+	Check         func() error
+}
+
+func NewReadWriteStream(stream *Stream) *ReadWriteStream {
+	return &ReadWriteStream{
+		Stream: *stream,
+	}
+}
+
+func (k *ReadWriteStream) setFetchInstanceHandler(handler func() error) {
+	k.FetchInstance = handler
+}
+
+func (k *ReadWriteStream) setWriteSeqHandler(handler func() error) {
+	k.WriteSeq = handler
+}
+
+func (k *ReadWriteStream) SetCheckHandler(handler func() error) {
+	k.Check = handler
+}
+
+func (k *ReadWriteStream) Write(rt ReadWriteTrait) error {
+	k.setFetchInstanceHandler(rt.FetchInstances)
+	k.setWriteSeqHandler(rt.WriteSeq)
+
+	err := k.WriteSeq()
+	if err != nil {
+		return err
+	}
+	err = k.FetchInstance()
+	if err != nil {
+		return err
+	}
+	err = k.WriteBackChildStreams()
+	return err
+}
