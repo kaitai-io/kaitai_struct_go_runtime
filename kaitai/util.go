@@ -55,8 +55,7 @@ func UnprocessZlib(in []byte) ([]byte, error) {
 	defer w.Close()
 
 	var out bytes.Buffer
-	_, err := w.Write(in)
-	if err != nil {
+	if _, err := w.Write(in); err != nil {
 		return nil, err
 	}
 

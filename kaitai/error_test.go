@@ -1,9 +1,10 @@
 package kaitai
 
 import (
-	"bytes"
 	"io"
 	"testing"
+
+	"github.com/kaitai-io/kaitai_struct_go_runtime/buffer"
 )
 
 func TestEndOfStreamError_Error(t *testing.T) {
@@ -39,6 +40,7 @@ func TestUndecidedEndiannessError_Error(t *testing.T) {
 		})
 	}
 }
+
 func Test_locationInfo_msgWithLocation(t *testing.T) {
 	type args struct {
 		msg string
@@ -51,7 +53,8 @@ func Test_locationInfo_msgWithLocation(t *testing.T) {
 		want      string
 	}{
 		{
-			"msg", locationInfo{NewStream(bytes.NewReader([]byte("test"))), "/seq/0"}, args{"something failed"}, 2,
+			"msg",
+			locationInfo{NewStream(buffer.NewSeekableBufferWithBytes([]byte("test"))), "/seq/0"}, args{"something failed"}, 2,
 			"/seq/0: at pos 2: something failed",
 		},
 	}
@@ -70,7 +73,7 @@ func Test_locationInfo_msgWithLocation(t *testing.T) {
 }
 
 func TestValidationFailedError_interface(t *testing.T) {
-	io := NewStream(bytes.NewReader([]byte("test")))
+	io := NewStream(buffer.NewSeekableBufferWithBytes([]byte("test")))
 	actual := -1
 	srcPath := "types/header/seq/7"
 	tests := []struct {
@@ -103,7 +106,7 @@ func TestValidationFailedError_interface(t *testing.T) {
 }
 
 func TestValidationNotEqualError_Error(t *testing.T) {
-	io := NewStream(bytes.NewReader([]byte("test")))
+	io := NewStream(buffer.NewSeekableBufferWithBytes([]byte("test")))
 	tests := []struct {
 		name string
 		e    ValidationNotEqualError
@@ -132,7 +135,7 @@ func TestValidationNotEqualError_Error(t *testing.T) {
 }
 
 func TestValidationNotEqualError_Expected(t *testing.T) {
-	io := NewStream(bytes.NewReader([]byte("test")))
+	io := NewStream(buffer.NewSeekableBufferWithBytes([]byte("test")))
 	tests := []struct {
 		name string
 		e    ValidationNotEqualError
@@ -150,7 +153,7 @@ func TestValidationNotEqualError_Expected(t *testing.T) {
 }
 
 func TestValidationLessThanError_Error(t *testing.T) {
-	io := NewStream(bytes.NewReader([]byte("test")))
+	io := NewStream(buffer.NewSeekableBufferWithBytes([]byte("test")))
 	tests := []struct {
 		name string
 		e    ValidationLessThanError
@@ -177,8 +180,9 @@ func TestValidationLessThanError_Error(t *testing.T) {
 		})
 	}
 }
+
 func TestValidationLessThanError_Min(t *testing.T) {
-	io := NewStream(bytes.NewReader([]byte("test")))
+	io := NewStream(buffer.NewSeekableBufferWithBytes([]byte("test")))
 	tests := []struct {
 		name string
 		e    ValidationLessThanError
@@ -196,7 +200,7 @@ func TestValidationLessThanError_Min(t *testing.T) {
 }
 
 func TestValidationGreaterThanError_Error(t *testing.T) {
-	io := NewStream(bytes.NewReader([]byte("test")))
+	io := NewStream(buffer.NewSeekableBufferWithBytes([]byte("test")))
 	tests := []struct {
 		name string
 		e    ValidationGreaterThanError
@@ -223,8 +227,9 @@ func TestValidationGreaterThanError_Error(t *testing.T) {
 		})
 	}
 }
+
 func TestValidationGreaterThanError_Max(t *testing.T) {
-	io := NewStream(bytes.NewReader([]byte("test")))
+	io := NewStream(buffer.NewSeekableBufferWithBytes([]byte("test")))
 	tests := []struct {
 		name string
 		e    ValidationGreaterThanError
@@ -242,7 +247,7 @@ func TestValidationGreaterThanError_Max(t *testing.T) {
 }
 
 func TestValidationNotAnyOfError_Error(t *testing.T) {
-	io := NewStream(bytes.NewReader([]byte("test")))
+	io := NewStream(buffer.NewSeekableBufferWithBytes([]byte("test")))
 	tests := []struct {
 		name string
 		e    ValidationNotAnyOfError
@@ -271,7 +276,7 @@ func TestValidationNotAnyOfError_Error(t *testing.T) {
 }
 
 func TestValidationExprError_Error(t *testing.T) {
-	io := NewStream(bytes.NewReader([]byte("test")))
+	io := NewStream(buffer.NewSeekableBufferWithBytes([]byte("test")))
 	tests := []struct {
 		name string
 		e    ValidationExprError
