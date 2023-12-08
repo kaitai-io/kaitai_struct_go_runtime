@@ -42,10 +42,15 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ```go
 func ReadAndWrite() {
-    resp := NewSmbNegotiateResponseV2()
-	stream := kaitai.NewReadWriteStream(kaitai.NewStream(reader))
-	resp.Read(stream, nil, resp)
-	// stream.Check()
-	err = stream.Write()
+	// read
+	stream := kaitai.NewStream(kaitai.NewFakeWriter(reader))
+	resp := drda.NewDrda()
+	err = resp.Read(stream, nil, resp)
+
+	// write
+	writer := buffer.NewSeekableBuffer()
+	err = resp.Check()
+	assert.Nil(err)
+	err = resp.Write(kaitai.NewStream(writer))
 }
 ```

@@ -3,6 +3,7 @@ package kaitai
 import (
 	"bytes"
 	"compress/zlib"
+	"errors"
 	"io"
 	"math/bits"
 	"strings"
@@ -122,4 +123,16 @@ func ByteArrayIndexof(arr []byte, b byte) int {
 		}
 	}
 	return -1
+}
+
+type FakeWriter struct {
+	io.ReadSeeker
+}
+
+func (fw *FakeWriter) Write([]byte) (n int, err error) {
+	return 0, errors.New("unsupported write")
+}
+
+func NewFakeWriter(reader io.ReadSeeker) io.ReadWriteSeeker {
+	return &FakeWriter{reader}
 }
