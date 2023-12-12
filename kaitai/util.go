@@ -136,3 +136,116 @@ func (fw *FakeWriter) Write([]byte) (n int, err error) {
 func NewFakeWriter(reader io.ReadSeeker) io.ReadWriteSeeker {
 	return &FakeWriter{reader}
 }
+
+type BytesTerminatedType struct {
+	Data       []byte
+	terminator byte
+	include    bool
+	consume    bool
+	eosError   bool
+}
+
+func (b *BytesTerminatedType) Read(in []byte) error {
+	b.Data = BytesTerminate(in, b.terminator, b.include)
+	return nil
+}
+
+func (b BytesTerminatedType) Write() ([]byte, error) {
+	if b.include {
+		return b.Data, nil
+	}
+	return append(b.Data, b.terminator), nil
+}
+
+func (b BytesTerminatedType) Size() (uint64, error) {
+	result := uint64(len(b.Data))
+	if b.include {
+		return result, nil
+	}
+	return result + 1, nil
+}
+
+func (b BytesTerminatedType) Bytes() []byte {
+	return b.Data
+}
+
+type String struct {
+	Data     string
+	encoding encoding.Encoding
+}
+
+func (s *String) Read(in []byte) error {
+	data, err := BytesToStr(in, s.encoding.NewDecoder())
+	if err != nil {
+		return err
+	}
+	s.Data = data
+	return nil
+}
+
+func (s String) Write() ([]byte, error) {
+	data, err := StrToBytes(s.Data, s.encoding.NewEncoder())
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func (s String) Size() (uint64, error) {
+	d, err := s.Write()
+	if err != nil {
+		return 0, err
+	}
+	return uint64(len(d)), nil
+}
+
+func (s String) String() string {
+	return s.Data
+}
+
+type StringTerminatedType struct {
+	Data       string
+	encoding   encoding.Encoding
+	terminator byte
+	include    bool
+	consume    bool
+	eosError   bool
+}
+
+func (s *StringTerminatedType) Read(in []byte) error {
+	var err error
+	data := BytesTerminate(in, s.terminator, s.include)
+	str, err := BytesToStr(data, s.encoding.NewDecoder())
+	if err != nil {
+		return err
+	}
+	s.Data = str
+	return nil
+}
+
+func (s StringTerminatedType) Write() ([]byte, error) {
+	data, err := StrToBytes(s.Data, s.encoding.NewEncoder())
+	if err != nil {
+		return nil, err
+	}
+	if s.include {
+		return data, nil
+	}
+	return append(data, s.terminator), nil
+}
+
+func (s StringTerminatedType) Size() (uint64, error) {
+	d, err := s.Write()
+	if err != nil {
+		return 0, err
+	}
+	result := uint64(len(d))
+	if s.include {
+		return result, nil
+	}
+	return result + 1, nil
+}
+
+func (s StringTerminatedType) String() string {
+	return s.Data
+}

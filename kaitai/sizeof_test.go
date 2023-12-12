@@ -4,6 +4,13 @@ import (
 	"testing"
 )
 
+type a struct {
+}
+
+func (a *a) Size() (uint64, error) {
+	return 4, nil
+}
+
 func TestSizeOf(t *testing.T) {
 	type args struct {
 		*Stream
@@ -23,9 +30,12 @@ func TestSizeOf(t *testing.T) {
 		Slice   []string
 		Array   [4]byte
 		Args    *args
+		Sizer   *a
 	}
-	result := args{}
-	var initLength uint64 = 55
+	result := args{
+		Sizer: &a{},
+	}
+	var initLength uint64 = 59
 
 	l, err := SizeOf(result)
 	if err != nil {
