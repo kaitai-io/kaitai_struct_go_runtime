@@ -145,6 +145,16 @@ type BytesTerminatedType struct {
 	eosError   bool
 }
 
+func NewBytesTerminatedType(data []byte, terminator byte, include bool, consume bool, eosError bool) *BytesTerminatedType {
+	return &BytesTerminatedType{
+		Data:       data,
+		terminator: terminator,
+		include:    include,
+		consume:    consume,
+		eosError:   eosError,
+	}
+}
+
 func (b *BytesTerminatedType) Read(in []byte) error {
 	b.Data = BytesTerminate(in, b.terminator, b.include)
 	return nil
@@ -210,6 +220,17 @@ type StringTerminatedType struct {
 	include    bool
 	consume    bool
 	eosError   bool
+}
+
+func NewStringTerminatedType(value string, encoding encoding.Encoding, terminator byte, include bool, consume bool, eosError bool) *StringTerminatedType {
+	return &StringTerminatedType{
+		Data:       value,
+		encoding:   encoding,
+		terminator: terminator,
+		include:    include,
+		consume:    consume,
+		eosError:   eosError,
+	}
 }
 
 func (s *StringTerminatedType) Read(in []byte) error {
