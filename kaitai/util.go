@@ -221,7 +221,7 @@ type StringTerminatedType struct {
 	eosError   bool
 }
 
-func NewStringTerminatedType(terminator byte, include bool, consume bool, eosError bool, encoding encoding.Encoding) *StringTerminatedType {
+func NewStringTerminatedType(encoding encoding.Encoding, terminator byte, include bool, consume bool, eosError bool) *StringTerminatedType {
 	return &StringTerminatedType{
 		encoding:   encoding,
 		terminator: terminator,
