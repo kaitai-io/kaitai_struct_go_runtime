@@ -159,11 +159,11 @@ func (b *BytesTerminatedType) Read(in []byte) error {
 	return nil
 }
 
-func (b BytesTerminatedType) Write() ([]byte, error) {
+func (b BytesTerminatedType) Write() []byte {
 	if b.include {
-		return b.Data, nil
+		return b.Data
 	}
-	return append(b.Data, b.terminator), nil
+	return append(b.Data, b.terminator)
 }
 
 func (b BytesTerminatedType) Len() (uint64, error) {
