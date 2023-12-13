@@ -145,9 +145,8 @@ type BytesTerminatedType struct {
 	eosError   bool
 }
 
-func NewBytesTerminatedType(data []byte, terminator byte, include bool, consume bool, eosError bool) *BytesTerminatedType {
+func NewBytesTerminatedType(terminator byte, include bool, consume bool, eosError bool) *BytesTerminatedType {
 	return &BytesTerminatedType{
-		Data:       data,
 		terminator: terminator,
 		include:    include,
 		consume:    consume,
@@ -222,9 +221,8 @@ type StringTerminatedType struct {
 	eosError   bool
 }
 
-func NewStringTerminatedType(value string, encoding encoding.Encoding, terminator byte, include bool, consume bool, eosError bool) *StringTerminatedType {
+func NewStringTerminatedType(terminator byte, include bool, consume bool, eosError bool, encoding encoding.Encoding) *StringTerminatedType {
 	return &StringTerminatedType{
-		Data:       value,
 		encoding:   encoding,
 		terminator: terminator,
 		include:    include,
