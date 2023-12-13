@@ -5,8 +5,8 @@ import (
 	"reflect"
 )
 
-type Size interface {
-	Size() (uint64, error)
+type Len interface {
+	Len() (uint64, error)
 }
 
 func SizeOf(msg interface{}) (uint64, error) {
@@ -16,9 +16,9 @@ func SizeOf(msg interface{}) (uint64, error) {
 
 func sizeOf(fieldValue reflect.Value) (uint64, error) {
 	// interface
-	marshaler, ok := fieldValue.Interface().(Size)
+	marshaler, ok := fieldValue.Interface().(Len)
 	if ok && marshaler != nil {
-		return marshaler.Size()
+		return marshaler.Len()
 	}
 
 	switch fieldValue.Kind() {

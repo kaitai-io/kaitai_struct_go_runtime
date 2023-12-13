@@ -7,7 +7,7 @@ import (
 type a struct {
 }
 
-func (a *a) Size() (uint64, error) {
+func (a *a) Len() (uint64, error) {
 	return 4, nil
 }
 
