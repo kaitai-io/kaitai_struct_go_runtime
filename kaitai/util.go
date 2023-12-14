@@ -159,11 +159,11 @@ func (b *BytesTerminatedType) Read(in []byte) error {
 	return nil
 }
 
-func (b BytesTerminatedType) Write() []byte {
+func (b BytesTerminatedType) Write() ([]byte, error) {
 	if b.include {
-		return b.Data
+		return b.Data, nil
 	}
-	return append(b.Data, b.terminator)
+	return append(b.Data, b.terminator), nil
 }
 
 func (b BytesTerminatedType) Len() (uint64, error) {
@@ -200,7 +200,7 @@ func (s String) Write() ([]byte, error) {
 	return data, nil
 }
 
-func (s String) Len() (uint64, error) {
+func (s String) Size() (uint64, error) {
 	d, err := s.Write()
 	if err != nil {
 		return 0, err
@@ -253,13 +253,16 @@ func (s StringTerminatedType) Write() ([]byte, error) {
 	return append(data, s.terminator), nil
 }
 
-func (s StringTerminatedType) Len() (uint64, error) {
+func (s StringTerminatedType) Size() (uint64, error) {
 	d, err := s.Write()
 	if err != nil {
 		return 0, err
 	}
 	result := uint64(len(d))
-	return result, nil
+	if s.include {
+		return result, nil
+	}
+	return result + 1, nil
 }
 
 func (s StringTerminatedType) String() string {
