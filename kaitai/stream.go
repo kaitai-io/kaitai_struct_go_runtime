@@ -26,6 +26,10 @@ type Stream struct {
 	writebackHandler *WriteBackHandler
 }
 
+type AnyTypeInterface interface {
+	Get_io() *Stream
+}
+
 func NewStream(rw io.ReadWriteSeeker) *Stream {
 	return &Stream{ReadWriteSeeker: rw}
 }
