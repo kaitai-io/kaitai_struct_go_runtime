@@ -363,10 +363,9 @@ func (k *Stream) ReadU1() (v uint8, err error) {
 		return 0, err
 	}
 	if n != 1 {
-		leftToRead := 1 - n
-		leftBuf := k.buf[leftToRead:1]
+		leftBuf := k.buf[n:1]
 		leftBuf = leftBuf[0:0]
-		_, err = k.Read(k.buf[leftToRead:1])
+		_, err = k.Read(k.buf[n:1])
 		if err != nil {
 			return 0, err
 		}
@@ -381,10 +380,9 @@ func (k *Stream) ReadU2be() (v uint16, err error) {
 		return 0, err
 	}
 	if n != 2 {
-		leftToRead := 2 - n
-		leftBuf := k.buf[leftToRead:2]
+		leftBuf := k.buf[n:2]
 		leftBuf = leftBuf[0:0]
-		_, err = k.Read(k.buf[leftToRead:2])
+		_, err = k.Read(k.buf[n:2])
 		if err != nil {
 			return 0, err
 		}
@@ -399,10 +397,9 @@ func (k *Stream) ReadU4be() (v uint32, err error) {
 		return 0, err
 	}
 	if n != 4 {
-		leftToRead := 4 - n
-		leftBuf := k.buf[leftToRead:4]
+		leftBuf := k.buf[n:4]
 		leftBuf = leftBuf[0:0]
-		_, err = k.Read(k.buf[leftToRead:4])
+		_, err = k.Read(k.buf[n:4])
 		if err != nil {
 			return 0, err
 		}
@@ -417,10 +414,9 @@ func (k *Stream) ReadU8be() (v uint64, err error) {
 		return 0, err
 	}
 	if n != 8 {
-		leftToRead := 8 - n
-		leftBuf := k.buf[leftToRead:8]
+		leftBuf := k.buf[n:8]
 		leftBuf = leftBuf[0:0]
-		_, err = k.Read(k.buf[leftToRead:8])
+		_, err = k.Read(k.buf[n:8])
 		if err != nil {
 			return 0, err
 		}
@@ -435,10 +431,9 @@ func (k *Stream) ReadU2le() (v uint16, err error) {
 		return 0, err
 	}
 	if n != 2 {
-		leftToRead := 2 - n
-		leftBuf := k.buf[leftToRead:2]
+		leftBuf := k.buf[n:2]
 		leftBuf = leftBuf[0:0]
-		_, err = k.Read(k.buf[leftToRead:2])
+		_, err = k.Read(k.buf[n:2])
 		if err != nil {
 			return 0, err
 		}
@@ -453,10 +448,9 @@ func (k *Stream) ReadU4le() (v uint32, err error) {
 		return 0, err
 	}
 	if n != 4 {
-		leftToRead := 4 - n
-		leftBuf := k.buf[leftToRead:4]
+		leftBuf := k.buf[n:4]
 		leftBuf = leftBuf[0:0]
-		_, err = k.Read(k.buf[leftToRead:4])
+		_, err = k.Read(k.buf[n:4])
 		if err != nil {
 			return 0, err
 		}
@@ -471,10 +465,9 @@ func (k *Stream) ReadU8le() (v uint64, err error) {
 		return 0, err
 	}
 	if n != 8 {
-		leftToRead := 8 - n
-		leftBuf := k.buf[leftToRead:8]
+		leftBuf := k.buf[n:8]
 		leftBuf = leftBuf[0:0]
-		_, err = k.Read(k.buf[leftToRead:8])
+		_, err = k.Read(k.buf[n:8])
 		if err != nil {
 			return 0, err
 		}
