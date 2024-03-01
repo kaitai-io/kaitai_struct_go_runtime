@@ -13,8 +13,14 @@ import (
 // APIVersion defines the currently used API version.
 const APIVersion = 0x0001
 
+// max read length
+const DefaultMaxReadSize = 4 * 1024
+
 type Stream struct {
 	io.ReadWriteSeeker
+
+	// ReadAll and ReadBytes max size
+	MaxReadSize int
 
 	buf           [8]byte
 	bitsLeft      int
@@ -31,7 +37,7 @@ type AnyTypeInterface interface {
 }
 
 func NewStream(rw io.ReadWriteSeeker) *Stream {
-	return &Stream{ReadWriteSeeker: rw}
+	return &Stream{ReadWriteSeeker: rw, MaxReadSize: DefaultMaxReadSize}
 }
 
 func (k *Stream) WriteU1(v uint8) error {
@@ -547,6 +553,10 @@ func (k *Stream) ReadBytes(n int) (b []byte, err error) {
 		return nil, fmt.Errorf("ReadBytes(%d): negative number of bytes to read", n)
 	}
 
+	if k.MaxReadSize > 0 && n > k.MaxReadSize {
+		return nil, fmt.Errorf("ReadBytes(%d): too big", n)
+	}
+
 	b = make([]byte, n)
 	_, err = io.ReadFull(k, b)
 	return b, err
@@ -554,7 +564,7 @@ func (k *Stream) ReadBytes(n int) (b []byte, err error) {
 
 // ReadBytesFull reads all remaining bytes and returns those as a byte array.
 func (k *Stream) ReadBytesFull() ([]byte, error) {
-	return io.ReadAll(k)
+	return io.ReadAll(io.LimitReader(k, int64(k.MaxReadSize)))
 }
 
 // ReadBytesPadTerm reads up to size bytes. pad bytes are discarded. It
@@ -610,7 +620,7 @@ func (k *Stream) ReadBytesTerm(term byte, includeTerm, consumeTerm, eosError boo
 
 // ReadStrEOS reads the remaining bytes as a string.
 func (k *Stream) ReadStrEOS(encoding string) (string, error) {
-	buf, err := io.ReadAll(k)
+	buf, err := k.ReadBytesFull()
 
 	// Go's string type can contain any bytes.  The Go `range` operator
 	// assumes that the encoding is UTF-8 and some standard Go libraries
