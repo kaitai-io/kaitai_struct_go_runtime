@@ -4,137 +4,479 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 )
 
 // APIVersion defines the currently used API version.
 const APIVersion = 0x0001
 
-// A Stream represents a sequence of bytes. It encapsulates reading from files
-// and memory, stores pointer to its current position, and allows
-// reading/writing of various primitives.
+// max read length
+const DefaultMaxReadSize = 4 * 1024
+
 type Stream struct {
-	io.ReadSeeker
-	buf [8]byte
+	io.ReadWriteSeeker
 
-	// Number of bits remaining in "bits" for sequential calls to ReadBitsInt
-	bitsLeft int
-	bits     uint64
+	// ReadAll and ReadBytes max size
+	MaxReadSize int
+
+	buf           [8]byte
+	bitsLeft      int
+	bits          uint64
+	bitsLe        bool
+	bitsWriteMode bool
+	// childs writeback handler
+	childStreams     []*Stream
+	writebackHandler *WriteBackHandler
 }
 
-// NewStream creates and initializes a new Buffer based on r.
-func NewStream(r io.ReadSeeker) *Stream {
-	return &Stream{ReadSeeker: r}
+type AnyTypeInterface interface {
+	Get_io() *Stream
 }
 
-// EOF returns true when the end of the Stream is reached.
-func (k *Stream) EOF() (bool, error) {
+func NewStream(rw io.ReadWriteSeeker) *Stream {
+	return &Stream{ReadWriteSeeker: rw, MaxReadSize: DefaultMaxReadSize}
+}
+
+func (k *Stream) WriteU1(v uint8) error {
+	k.buf[0] = v
+	_, err := k.Write(k.buf[:1])
+	return err
+}
+
+// WriteU2be writes a uint16 in big-endian order to the underlying writer.
+func (k *Stream) WriteU2be(v uint16) error {
+	binary.BigEndian.PutUint16(k.buf[:2], v)
+	_, err := k.Write(k.buf[:2])
+	return err
+}
+
+// WriteU4be writes a uint32 in big-endian order to the underlying writer.
+func (k *Stream) WriteU4be(v uint32) error {
+	binary.BigEndian.PutUint32(k.buf[:4], v)
+	_, err := k.Write(k.buf[:4])
+	return err
+}
+
+// WriteU8be writes a uint64 in big-endian order to the underlying writer.
+func (k *Stream) WriteU8be(v uint64) error {
+	binary.BigEndian.PutUint64(k.buf[:8], v)
+	_, err := k.Write(k.buf[:8])
+	return err
+}
+
+// WriteU2le writes a uint16 in little-endian order to the underlying writer.
+func (k *Stream) WriteU2le(v uint16) error {
+	binary.LittleEndian.PutUint16(k.buf[:2], v)
+	_, err := k.Write(k.buf[:2])
+	return err
+}
+
+// WriteU4le writes a uint32 in little-endian order to the underlying writer.
+func (k *Stream) WriteU4le(v uint32) error {
+	binary.LittleEndian.PutUint32(k.buf[:4], v)
+	_, err := k.Write(k.buf[:4])
+	return err
+}
+
+// WriteU8le writes a uint64 in little-endian order to the underlying writer.
+func (k *Stream) WriteU8le(v uint64) error {
+	binary.LittleEndian.PutUint64(k.buf[:8], v)
+	_, err := k.Write(k.buf[:8])
+	return err
+}
+
+// WriteS1 writes an int8 to the underlying writer.
+func (k *Stream) WriteS1(v int8) error {
+	return k.WriteU1(uint8(v))
+}
+
+// WriteS2be writes an int16 in big-endian order to the underlying writer.
+func (k *Stream) WriteS2be(v int16) error {
+	return k.WriteU2be(uint16(v))
+}
+
+// WriteS4be writes an in32 in big-endian order to the underlying writer.
+func (k *Stream) WriteS4be(v int32) error {
+	return k.WriteU4be(uint32(v))
+}
+
+// WriteS8be writes an int64 in big-endian order to the underlying writer.
+func (k *Stream) WriteS8be(v int64) error {
+	return k.WriteU8be(uint64(v))
+}
+
+// WriteS2le writes an int16 in little-endian order to the underlying writer.
+func (k *Stream) WriteS2le(v int16) error {
+	return k.WriteU2le(uint16(v))
+}
+
+// WriteS4le writes an int32 in little-endian order to the underlying writer.
+func (k *Stream) WriteS4le(v int32) error {
+	return k.WriteU4le(uint32(v))
+}
+
+// WriteS8le writes an int64 in little-endian order to the underlying writer.
+func (k *Stream) WriteS8le(v int64) error {
+	return k.WriteU8le(uint64(v))
+}
+
+// WriteF4be writes a float32 in big-endian order to the underlying writer.
+func (k *Stream) WriteF4be(v float32) error {
+	return k.WriteU4be(math.Float32bits(v))
+}
+
+// WriteF8be writes a float64 in big-endian order to the underlying writer.
+func (k *Stream) WriteF8be(v float64) error {
+	return k.WriteU8be(math.Float64bits(v))
+}
+
+// WriteF4le writes a float32 in little-endian order to the underlying writer.
+func (k *Stream) WriteF4le(v float32) error {
+	return k.WriteU4le(math.Float32bits(v))
+}
+
+// WriteF8le writes a float64 in little-endian order to the underlying writer.
+func (k *Stream) WriteF8le(v float64) error {
+	return k.WriteU8le(math.Float64bits(v))
+}
+
+// WriteBytes writes the byte slice b to the underlying writer.
+func (k *Stream) WriteBytes(b []byte) error {
+	err := k.WriteAlignToByte()
+	if err != nil {
+		return err
+	}
+	err = k.writeBytesNotAligned(b)
+	return err
+}
+
+func (k *Stream) WriteBitsIntBe(n int, val uint64) error {
+	k.bitsLe = false
+	k.bitsWriteMode = true
+
+	if n < 64 {
+		var mask uint64 = (1 << n) - 1
+		val &= mask
+	}
+
+	bitsToWrite := k.bitsLeft + n
+	bytesNeeded := ((bitsToWrite - 1) / 8) + 1
+
+	pos, err := k.Pos()
+	if err != nil {
+		return err
+	}
 	if k.bitsLeft > 0 {
-		return false, nil
-	}
-	curPos, err := k.Pos()
-	if err != nil {
-		return false, err
-	}
-
-	isEOF := false
-	_, err = k.ReadU1()
-	if err == io.EOF {
-		isEOF = true
-		err = nil
+		err = k.ensureBytesLeftToWrite(bytesNeeded-1, pos)
+	} else {
+		err = k.ensureBytesLeftToWrite(bytesNeeded-0, pos)
 	}
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	_, err = k.Seek(curPos, io.SeekStart)
-	return isEOF, err
+	bytesToWrite := bitsToWrite / 8
+	k.bitsLeft = bitsToWrite & 7
+	if bytesToWrite > 0 {
+		var mask uint64 = (1 << k.bitsLeft) - 1
+		newBits := val & mask
+
+		var num uint64
+		if n-k.bitsLeft < 64 {
+			num = k.bits << (n - k.bitsLeft)
+		}
+		val = (uint64(val) >> uint64(k.bitsLeft)) | num
+		k.bits = newBits
+
+		for i := bytesToWrite - 1; i >= 0; i-- {
+			k.buf[i] = byte(val & 0xff)
+			val = uint64(val) >> 8
+		}
+		err = k.writeBytesNotAligned(k.buf[:])
+	} else {
+		k.bits = k.bits<<n | val
+	}
+
+	return err
 }
 
-// Size returns the number of bytes of the stream.
-func (k *Stream) Size() (int64, error) {
-	// Go has no internal ReadSeeker function to get current ReadSeeker size,
-	// thus we use the following trick.
-	// Remember our current position
-	curPos, err := k.Pos()
+func (k *Stream) WriteBitsIntLe(n int, val uint64) error {
+	k.bitsLe = true
+	k.bitsWriteMode = true
+
+	bitsToWrite := k.bitsLeft + n
+	bytesNeeded := ((bitsToWrite - 1) / 8) + 1
+
+	pos, err := k.Pos()
 	if err != nil {
-		return 0, err
+		return err
 	}
-	// Seek to the end of the File object
-	_, err = k.Seek(0, io.SeekEnd)
+	if k.bitsLeft > 0 {
+		err = k.ensureBytesLeftToWrite(bytesNeeded-1, pos)
+	} else {
+		err = k.ensureBytesLeftToWrite(bytesNeeded-0, pos)
+	}
 	if err != nil {
-		return 0, err
+		return err
 	}
-	// Remember position, which is equal to the full length
-	fullSize, err := k.Pos()
+
+	bytesToWrite := bitsToWrite / 8
+	k.bitsLeft = bitsToWrite & 7
+	if bytesToWrite > 0 {
+		var mask uint64 = (1 << k.bitsLeft) - 1
+		newBits := val & mask
+
+		var num uint64
+		if n-k.bitsLeft < 64 {
+			num = k.bits << (n - k.bitsLeft)
+		}
+		val = uint64(val)>>uint64(k.bitsLeft) | num
+		k.bits = newBits
+
+		for i := bytesToWrite - 1; i >= 0; i-- {
+			k.buf[i] = byte(val & 0xff)
+			val = uint64(val) >> 8
+		}
+		err = k.writeBytesNotAligned(k.buf[:])
+	} else {
+		k.bits = k.bits<<n | val
+	}
 	if err != nil {
-		return fullSize, err
+		return err
 	}
-	// Seek back to the current position
-	_, err = k.Seek(curPos, io.SeekStart)
-	return fullSize, err
+
+	var mask uint64 = (1 << k.bitsLeft) - 1
+	k.bits &= mask
+	return nil
 }
 
-// Pos returns the current position of the stream.
-func (k *Stream) Pos() (int64, error) {
-	return k.Seek(0, io.SeekCurrent)
+// AlignToByte discards the remaining bits and starts reading bits at the
+// next byte.
+func (k *Stream) AlignToByte() {
+	k.bitsLeft = 0
+	k.bits = 0
 }
+
+func (k *Stream) WriteAlignToByte() error {
+	var err error
+	if k.bitsLeft > 0 {
+		b := byte(k.bits)
+		if !k.bitsLe {
+			b <<= 8 - k.bitsLeft
+		}
+
+		k.AlignToByte()
+		err = k.writeBytesNotAligned([]byte{b})
+	}
+	return err
+}
+
+func (k *Stream) WriteBytesLimit(buf []byte, size int64, term int8, padByte int8) error {
+	bufLen := int64(len(buf))
+	k.WriteBytes(buf)
+
+	var err error
+	if bufLen < size {
+		k.WriteS1(term)
+		var padLen int64 = size - bufLen - 1
+		for i := int64(0); i < padLen; i++ {
+			e := k.WriteS1(padByte)
+			if err != nil {
+				err = e
+				break
+			}
+		}
+	} else {
+		if bufLen > size {
+			err = fmt.Errorf(
+				"Writing %d bytes, but %d bytes were given", size, bufLen,
+			)
+		}
+	}
+	return err
+}
+
+func (k *Stream) ensureBytesLeftToWrite(n int, pos int64) error {
+	bytesLeft, err := k.Pos()
+	if err != nil {
+		return err
+	}
+
+	if int64(n) > bytesLeft {
+		return errors.New(fmt.Sprintf("requested to write %d bytes, but only %d bytesLeft bytes left in the stream", n, bytesLeft))
+	}
+
+	return nil
+}
+
+func (k *Stream) writeBytesNotAligned(buf []byte) error {
+	_, err := k.Write(buf)
+	return err
+}
+
+func (k *Stream) WriteBackChildStreams() error {
+	return k.writeBackChildStreams(nil)
+}
+
+func (k *Stream) writeBackChildStreams(parent *Stream) error {
+	pos, err := k.Pos()
+	if err != nil {
+		return err
+	}
+
+	for _, child := range k.childStreams {
+		err = child.writeBackChildStreams(k)
+		if err != nil {
+			return err
+		}
+	}
+	k.childStreams = k.childStreams[:0]
+	_, err = k.Seek(pos, io.SeekStart)
+	if err != nil {
+		return err
+	}
+	if parent != nil {
+		err = k.writeback(parent)
+	}
+
+	return err
+}
+
+func (k *Stream) writeback(parent *Stream) error {
+	return k.writebackHandler.writeBack(parent)
+}
+
+func (k *Stream) SetWriteBackHandler(handler *WriteBackHandler) {
+	k.writebackHandler = handler
+}
+
+func (k *Stream) AddChildStream(child *Stream) {
+	if child.ReadWriteSeeker == nil {
+		child.ReadWriteSeeker = k.ReadWriteSeeker
+	}
+	k.childStreams = append(k.childStreams, child)
+}
+
+// read part
 
 // ReadU1 reads 1 byte and returns this as uint8.
 func (k *Stream) ReadU1() (v uint8, err error) {
-	if _, err = k.Read(k.buf[:1]); err != nil {
+	n, err := k.Read(k.buf[:1])
+	if err != nil {
 		return 0, err
+	}
+	if n != 1 {
+		leftBuf := k.buf[n:1]
+		leftBuf = leftBuf[0:0]
+		_, err = k.Read(k.buf[n:1])
+		if err != nil {
+			return 0, err
+		}
 	}
 	return k.buf[0], nil
 }
 
 // ReadU2be reads 2 bytes in big-endian order and returns those as uint16.
 func (k *Stream) ReadU2be() (v uint16, err error) {
-	if _, err = k.Read(k.buf[:2]); err != nil {
+	n, err := k.Read(k.buf[:2])
+	if err != nil {
 		return 0, err
+	}
+	if n != 2 {
+		leftBuf := k.buf[n:2]
+		leftBuf = leftBuf[0:0]
+		_, err = k.Read(k.buf[n:2])
+		if err != nil {
+			return 0, err
+		}
 	}
 	return binary.BigEndian.Uint16(k.buf[:2]), nil
 }
 
 // ReadU4be reads 4 bytes in big-endian order and returns those as uint32.
 func (k *Stream) ReadU4be() (v uint32, err error) {
-	if _, err = k.Read(k.buf[:4]); err != nil {
+	n, err := k.Read(k.buf[:4])
+	if err != nil {
 		return 0, err
+	}
+	if n != 4 {
+		leftBuf := k.buf[n:4]
+		leftBuf = leftBuf[0:0]
+		_, err = k.Read(k.buf[n:4])
+		if err != nil {
+			return 0, err
+		}
 	}
 	return binary.BigEndian.Uint32(k.buf[:4]), nil
 }
 
 // ReadU8be reads 8 bytes in big-endian order and returns those as uint64.
 func (k *Stream) ReadU8be() (v uint64, err error) {
-	if _, err = k.Read(k.buf[:8]); err != nil {
+	n, err := k.Read(k.buf[:8])
+	if err != nil {
 		return 0, err
+	}
+	if n != 8 {
+		leftBuf := k.buf[n:8]
+		leftBuf = leftBuf[0:0]
+		_, err = k.Read(k.buf[n:8])
+		if err != nil {
+			return 0, err
+		}
 	}
 	return binary.BigEndian.Uint64(k.buf[:8]), nil
 }
 
 // ReadU2le reads 2 bytes in little-endian order and returns those as uint16.
 func (k *Stream) ReadU2le() (v uint16, err error) {
-	if _, err = k.Read(k.buf[:2]); err != nil {
+	n, err := k.Read(k.buf[:2])
+	if err != nil {
 		return 0, err
+	}
+	if n != 2 {
+		leftBuf := k.buf[n:2]
+		leftBuf = leftBuf[0:0]
+		_, err = k.Read(k.buf[n:2])
+		if err != nil {
+			return 0, err
+		}
 	}
 	return binary.LittleEndian.Uint16(k.buf[:2]), nil
 }
 
 // ReadU4le reads 4 bytes in little-endian order and returns those as uint32.
 func (k *Stream) ReadU4le() (v uint32, err error) {
-	if _, err = k.Read(k.buf[:4]); err != nil {
+	n, err := k.Read(k.buf[:4])
+	if err != nil {
 		return 0, err
+	}
+	if n != 4 {
+		leftBuf := k.buf[n:4]
+		leftBuf = leftBuf[0:0]
+		_, err = k.Read(k.buf[n:4])
+		if err != nil {
+			return 0, err
+		}
 	}
 	return binary.LittleEndian.Uint32(k.buf[:4]), nil
 }
 
 // ReadU8le reads 8 bytes in little-endian order and returns those as uint64.
 func (k *Stream) ReadU8le() (v uint64, err error) {
-	if _, err = k.Read(k.buf[:8]); err != nil {
+	n, err := k.Read(k.buf[:8])
+	if err != nil {
 		return 0, err
+	}
+	if n != 8 {
+		leftBuf := k.buf[n:8]
+		leftBuf = leftBuf[0:0]
+		_, err = k.Read(k.buf[n:8])
+		if err != nil {
+			return 0, err
+		}
 	}
 	return binary.LittleEndian.Uint64(k.buf[:8]), nil
 }
@@ -211,6 +553,10 @@ func (k *Stream) ReadBytes(n int) (b []byte, err error) {
 		return nil, fmt.Errorf("ReadBytes(%d): negative number of bytes to read", n)
 	}
 
+	if k.MaxReadSize > 0 && n > k.MaxReadSize {
+		return nil, fmt.Errorf("ReadBytes(%d): too big", n)
+	}
+
 	b = make([]byte, n)
 	_, err = io.ReadFull(k, b)
 	return b, err
@@ -218,7 +564,7 @@ func (k *Stream) ReadBytes(n int) (b []byte, err error) {
 
 // ReadBytesFull reads all remaining bytes and returns those as a byte array.
 func (k *Stream) ReadBytesFull() ([]byte, error) {
-	return ioutil.ReadAll(k)
+	return io.ReadAll(io.LimitReader(k, int64(k.MaxReadSize)))
 }
 
 // ReadBytesPadTerm reads up to size bytes. pad bytes are discarded. It
@@ -274,7 +620,7 @@ func (k *Stream) ReadBytesTerm(term byte, includeTerm, consumeTerm, eosError boo
 
 // ReadStrEOS reads the remaining bytes as a string.
 func (k *Stream) ReadStrEOS(encoding string) (string, error) {
-	buf, err := ioutil.ReadAll(k)
+	buf, err := k.ReadBytesFull()
 
 	// Go's string type can contain any bytes.  The Go `range` operator
 	// assumes that the encoding is UTF-8 and some standard Go libraries
@@ -288,13 +634,6 @@ func (k *Stream) ReadStrByteLimit(limit int, encoding string) (string, error) {
 	buf := make([]byte, limit)
 	n, err := k.Read(buf)
 	return string(buf[:n]), err
-}
-
-// AlignToByte discards the remaining bits and starts reading bits at the
-// next byte.
-func (k *Stream) AlignToByte() {
-	k.bitsLeft = 0
-	k.bits = 0
 }
 
 // ReadBitsIntBe reads n-bit integer in big-endian byte order and returns it as uint64.
@@ -378,5 +717,76 @@ func (k *Stream) ReadBitsIntLe(n int) (res uint64, err error) {
 
 // ReadBitsArray is not implemented yet.
 func (k *Stream) ReadBitsArray(n uint) error {
-	return nil // TODO: implement
+	// TODO: implement, and did not find in https://github1s.com/kaitai-io/kaitai_struct_java_runtime, maybe this is a historical problem?
+	return nil
+}
+
+// Pos returns the current position of the stream.
+func (k *Stream) Pos() (int64, error) {
+	return k.Seek(0, io.SeekCurrent)
+}
+
+// EOF returns true when the end of the Stream is reached.
+func (k *Stream) EOF() (bool, error) {
+	if k.bitsLeft > 0 {
+		return false, nil
+	}
+	curPos, err := k.Pos()
+	if err != nil {
+		return false, err
+	}
+
+	isEOF := false
+	_, err = k.ReadU1()
+	if err == io.EOF {
+		isEOF = true
+		err = nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	_, err = k.Seek(curPos, io.SeekStart)
+	return isEOF, err
+}
+
+// Size returns the number of bytes of the stream.
+func (k *Stream) Size() (int64, error) {
+	// Go has no internal ReadSeeker function to get current ReadSeeker size,
+	// thus we use the following trick.
+	// Remember our current position
+	curPos, err := k.Pos()
+	if err != nil {
+		return 0, err
+	}
+	// Seek to the end of the File object
+	_, err = k.Seek(0, io.SeekEnd)
+	if err != nil {
+		return 0, err
+	}
+	// Remember position, which is equal to the full length
+	fullSize, err := k.Pos()
+	if err != nil {
+		return fullSize, err
+	}
+	// Seek back to the current position
+	_, err = k.Seek(curPos, io.SeekStart)
+	return fullSize, err
+}
+
+func (k *Stream) ToByteArray() ([]byte, error) {
+	pos, err := k.Pos()
+	if err != nil {
+		return nil, err
+	}
+	_, err = k.Seek(0, io.SeekStart)
+	if err != nil {
+		return nil, err
+	}
+	b, err := k.ReadBytesFull()
+	if err != nil {
+		return nil, err
+	}
+	_, err = k.Seek(pos, io.SeekStart)
+	return b, err
 }

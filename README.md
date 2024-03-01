@@ -37,3 +37,20 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
 LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## example
+
+```go
+func ReadAndWrite() {
+	// read
+	stream := kaitai.NewStream(kaitai.NewFakeWriter(reader))
+	resp := drda.NewDrda()
+	err = resp.Read(stream, nil, resp)
+
+	// write
+	writer := buffer.NewSeekableBuffer()
+	err = resp.Check()
+	assert.Nil(err)
+	err = resp.Write(kaitai.NewStream(writer))
+}
+```
