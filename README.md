@@ -17,7 +17,7 @@ Further reading:
 
 ## Licensing
 
-Copyright 2017-2022 Kaitai Project: MIT license
+Copyright 2017-2024 Kaitai Project: MIT license
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
