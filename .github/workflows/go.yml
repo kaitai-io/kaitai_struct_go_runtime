@@ -18,6 +18,8 @@ jobs:
         with:
           go-version: '1.21'
 
+      - run: go mod download
+
       - name: Test
         run: go test -v ./...
 
@@ -27,6 +29,13 @@ jobs:
     steps:
 
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: false
+
+      - run: go mod download
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v4
