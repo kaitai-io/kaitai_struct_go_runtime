@@ -60,7 +60,7 @@ func BytesToStr(in []byte, decoder *encoding.Decoder) (string, error) {
 	o := transform.NewReader(i, decoder)
 	d, err := ioutil.ReadAll(o)
 	if err != nil {
-		return "", fmt.Errorf("BytesToStr: error reading all: %w", err)
+		return "", fmt.Errorf("BytesToStr: error decoding bytes with %T: %w", decoder.Transformer, err)
 	}
 	return string(d), nil
 }
