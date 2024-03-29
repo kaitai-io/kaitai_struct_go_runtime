@@ -3,6 +3,7 @@ package kaitai
 import (
 	"bytes"
 	"testing"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,7 +26,8 @@ func (s *twoStruct) Kaitai_IO() *Stream {
 	return s._io
 }
 
-func WorkWithStruct(s Struct, t *testing.T, expectedSize int) {
+func WorkWithStruct(t *testing.T, s Struct, expectedSize int) {
+	t.Helper()
 	actualSize, err := s.Kaitai_IO().Size()
 	assert.Nil(t, err)
 	assert.Equal(t, actualSize, int64(expectedSize))
@@ -41,6 +43,6 @@ func TestKaitaiStruct(t *testing.T) {
 	two := twoStruct{222, twoStream}
 
 	// Check if the structs implement the Struct interface
-	WorkWithStruct(&one, t, 7)
-	WorkWithStruct(&two, t, 9)
+	WorkWithStruct(t, &one, 7)
+	WorkWithStruct(t, &two, 9)
 }
