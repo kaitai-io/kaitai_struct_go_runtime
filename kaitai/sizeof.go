@@ -2,7 +2,9 @@ package kaitai
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
+	"strings"
 )
 
 type Len interface {
@@ -45,6 +47,21 @@ func sizeOf(fieldValue reflect.Value) (uint64, error) {
 		}
 		return result, nil
 	case reflect.Struct:
+		if strings.Contains(fieldValue.String(), "StringTerminatedType") {
+			st, ok := fieldValue.Interface().(StringTerminatedType)
+			if !ok {
+				return 0, fmt.Errorf("cast from [%v] to [StringTerminatedType] error", fieldValue.String())
+			}
+			return st.Size()
+		}
+		if strings.Contains(fieldValue.String(), "StringTerminatedType") {
+			bt, ok := fieldValue.Interface().(BytesTerminatedType)
+			if !ok {
+				return 0, fmt.Errorf("cast from [%v] to [BytesTerminatedType] error", fieldValue.String())
+			}
+			return bt.Len()
+		}
+
 		numField := fieldValue.NumField()
 		valueType := fieldValue.Type()
 		var result uint64
