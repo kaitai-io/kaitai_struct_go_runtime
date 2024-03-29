@@ -27,20 +27,20 @@ func (s *twoStruct) Kaitai_IO() *Stream {
 
 func WorkWithStruct(s Struct, t *testing.T, expectedSize int) {
 	actualSize, err := s.Kaitai_IO().Size()
-	assert.Equal(t, actualSize, int64(expectedSize))
 	assert.Nil(t, err)
+	assert.Equal(t, actualSize, int64(expectedSize))
 }
 
 func TestKaitaiStruct(t *testing.T) {
 	// Instantiate streams for the structs
-	oneStream := NewStream(bytes.NewReader([]byte("a")))
-	twoStream := NewStream(bytes.NewReader([]byte("ab")))
+	oneStream := NewStream(bytes.NewReader([]byte("a quick")))
+	twoStream := NewStream(bytes.NewReader([]byte("brown fox")))
 
 	// Instantiate the structs
-	one := oneStruct{1, oneStream}
-	two := twoStruct{2, twoStream}
+	one := oneStruct{111, oneStream}
+	two := twoStruct{222, twoStream}
 
 	// Check if the structs implement the Struct interface
-	WorkWithStruct(&one, t, 1)
-	WorkWithStruct(&two, t, 2)
+	WorkWithStruct(&one, t, 7)
+	WorkWithStruct(&two, t, 9)
 }
