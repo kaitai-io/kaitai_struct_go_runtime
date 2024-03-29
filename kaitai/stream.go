@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -42,7 +43,7 @@ func (k *Stream) EOF() (bool, error) {
 
 	isEOF := false
 	_, err = k.ReadU1()
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		isEOF = true
 		err = nil
 	}
@@ -256,8 +257,12 @@ func (k *Stream) ReadBytesTerm(term byte, includeTerm, consumeTerm, eosError boo
 	}
 	slice, err := r.ReadBytes(term)
 
-	if err != nil && (err != io.EOF || eosError) {
-		return slice, err
+	if err != nil {
+		// If eosError if false, ignore io.EOF and bail out on any other error
+		// If eosError is true, bail out on any error, including io.EOF
+		if eosError || !errors.Is(err, io.EOF) {
+			return slice, err
+		}
 	}
 	_, err = k.Seek(pos+int64(len(slice)), io.SeekStart)
 	if err != nil {
