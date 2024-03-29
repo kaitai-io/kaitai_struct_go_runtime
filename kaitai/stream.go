@@ -305,24 +305,6 @@ func (k *Stream) ReadBytesTerm(term byte, includeTerm, consumeTerm, eosError boo
 	return slice, nil
 }
 
-// ReadStrEOS reads the remaining bytes as a string.
-func (k *Stream) ReadStrEOS(encoding string) (string, error) {
-	buf, err := ioutil.ReadAll(k)
-
-	// Go's string type can contain any bytes.  The Go `range` operator
-	// assumes that the encoding is UTF-8 and some standard Go libraries
-	// also would like UTF-8.  For now we'll leave any advanced
-	// conversions up to the user.
-	return string(buf), err
-}
-
-// ReadStrByteLimit reads limit number of bytes and returns those as a string.
-func (k *Stream) ReadStrByteLimit(limit int, encoding string) (string, error) {
-	buf := make([]byte, limit)
-	n, err := k.Read(buf)
-	return string(buf[:n]), err
-}
-
 // AlignToByte discards the remaining bits and starts reading bits at the
 // next byte.
 func (k *Stream) AlignToByte() {
@@ -407,9 +389,4 @@ func (k *Stream) ReadBitsIntLe(n int) (res uint64, err error) {
 	var mask uint64 = (1 << n) - 1 // unlike some other languages, no problem with this in Go
 	res &= mask
 	return res, nil
-}
-
-// ReadBitsArray is not implemented yet.
-func (k *Stream) ReadBitsArray(n uint) error {
-	return nil // TODO: implement
 }
