@@ -62,7 +62,8 @@ type ValidationNotEqualError struct {
 }
 
 // NewValidationNotEqualError creates a new ValidationNotEqualError instance.
-func NewValidationNotEqualError(expected interface{}, actual interface{}, io *Stream, srcPath string) ValidationNotEqualError {
+func NewValidationNotEqualError(
+	expected interface{}, actual interface{}, io *Stream, srcPath string) ValidationNotEqualError {
 	return ValidationNotEqualError{
 		expected,
 		actual,
@@ -93,7 +94,8 @@ type ValidationLessThanError struct {
 }
 
 // NewValidationLessThanError creates a new ValidationLessThanError instance.
-func NewValidationLessThanError(min interface{}, actual interface{}, io *Stream, srcPath string) ValidationLessThanError {
+func NewValidationLessThanError(
+	min interface{}, actual interface{}, io *Stream, srcPath string) ValidationLessThanError {
 	return ValidationLessThanError{
 		min,
 		actual,
@@ -124,7 +126,8 @@ type ValidationGreaterThanError struct {
 }
 
 // NewValidationGreaterThanError creates a new ValidationGreaterThanError instance.
-func NewValidationGreaterThanError(max interface{}, actual interface{}, io *Stream, srcPath string) ValidationGreaterThanError {
+func NewValidationGreaterThanError(
+	max interface{}, actual interface{}, io *Stream, srcPath string) ValidationGreaterThanError {
 	return ValidationGreaterThanError{
 		max,
 		actual,

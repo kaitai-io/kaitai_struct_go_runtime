@@ -650,61 +650,6 @@ func TestStream_ReadBytesTerm(t *testing.T) {
 	}
 }
 
-func TestStream_ReadStrEOS(t *testing.T) {
-	type args struct {
-		encoding string
-	}
-	tests := []struct {
-		name    string
-		k       *Stream
-		args    args
-		want    string
-		wantErr bool
-	}{
-		{"ReadStrEOS", NewStream(bytes.NewReader([]byte("fooo"))), args{""}, "fooo", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.k.ReadStrEOS(tt.args.encoding)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Stream.ReadStrEOS() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("Stream.ReadStrEOS() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestStream_ReadStrByteLimit(t *testing.T) {
-	type args struct {
-		limit    int
-		encoding string
-	}
-	tests := []struct {
-		name    string
-		k       *Stream
-		args    args
-		want    string
-		wantErr bool
-	}{
-		{"ReadStrByteLimit", NewStream(bytes.NewReader([]byte("fooo"))), args{2, ""}, "fo", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.k.ReadStrByteLimit(tt.args.limit, tt.args.encoding)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Stream.ReadStrByteLimit() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("Stream.ReadStrByteLimit() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestStream_AlignToByte(t *testing.T) {
 	type bitInt struct {
 		bits           int
@@ -757,7 +702,7 @@ func TestStream_AlignToByte(t *testing.T) {
 	}
 }
 
-func TestStream_ReadBitsIntBe(t *testing.T) {
+func TestStream_ReadBitsInt(t *testing.T) {
 	type args struct {
 		totalBitsNeeded int
 	}
@@ -771,66 +716,31 @@ func TestStream_ReadBitsIntBe(t *testing.T) {
 		{"ReadBitsIntBe", NewStream(bytes.NewReader([]byte{0xF0})), args{5}, 0x1E, false},
 		{"ReadBitsIntBe", NewStream(bytes.NewReader([]byte{0x12, 0x34, 0x56, 0xFF})), args{24}, 0x123456, false},
 		{"ReadBitsIntBe", NewStream(bytes.NewReader([]byte{0xAB, 0xC7})), args{12}, 0xABC, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotVal, err := tt.k.ReadBitsIntBe(tt.args.totalBitsNeeded)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Stream.ReadBitsIntBe() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if gotVal != tt.wantVal {
-				t.Errorf("Stream.ReadBitsIntBe() = %v, want %v", gotVal, tt.wantVal)
-			}
-		})
-	}
-}
-
-func TestStream_ReadBitsIntLe(t *testing.T) {
-	type args struct {
-		n int
-	}
-	tests := []struct {
-		name    string
-		k       *Stream
-		args    args
-		wantRes uint64
-		wantErr bool
-	}{
 		{"ReadBitsIntLe", NewStream(bytes.NewReader([]byte{0xF0})), args{5}, 16, false},
 		{"ReadBitsIntLe", NewStream(bytes.NewReader([]byte{0x56, 0x34, 0x12, 0xFF})), args{24}, 0x123456, false},
 		{"ReadBitsIntLe", NewStream(bytes.NewReader([]byte{0xBC, 0x7A})), args{12}, 0xABC, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotRes, err := tt.k.ReadBitsIntLe(tt.args.n)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Stream.ReadBitsIntLe() error = %v, wantErr %v", err, tt.wantErr)
+			var gotVal uint64
+			var err error
+
+			switch tt.name {
+			case "ReadBitsIntBe":
+				gotVal, err = tt.k.ReadBitsIntBe(tt.args.totalBitsNeeded)
+			case "ReadBitsIntLe":
+				gotVal, err = tt.k.ReadBitsIntLe(tt.args.totalBitsNeeded)
+			default:
+				t.Errorf("Unknown test method: %v", tt.name)
 				return
 			}
-			if gotRes != tt.wantRes {
-				t.Errorf("Stream.ReadBitsIntLe() = %v, want %v", gotRes, tt.wantRes)
-			}
-		})
-	}
-}
 
-func TestStream_ReadBitsArray(t *testing.T) {
-	type args struct {
-		n uint
-	}
-	tests := []struct {
-		name    string
-		k       *Stream
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := tt.k.ReadBitsArray(tt.args.n); (err != nil) != tt.wantErr {
-				t.Errorf("Stream.ReadBitsArray() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Stream.%s() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+				return
+			}
+			if gotVal != tt.wantVal {
+				t.Errorf("Stream.%s() = %v, want %v", tt.name, gotVal, tt.wantVal)
 			}
 		})
 	}

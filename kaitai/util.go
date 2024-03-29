@@ -3,6 +3,7 @@ package kaitai
 import (
 	"bytes"
 	"compress/zlib"
+	"fmt"
 	"io/ioutil"
 	"math/bits"
 
@@ -43,19 +44,23 @@ func ProcessZlib(in []byte) ([]byte, error) {
 	// we could reuse it by using a sync.Pool if this is called in a tight loop.
 	r, err := zlib.NewReader(b)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ProcessZlib: error initializing zlib reader: %w", err)
 	}
 
-	return ioutil.ReadAll(r)
+	res, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("ProcessZlib: error reading zlib data: %w", err)
+	}
+	return res, nil
 }
 
 // BytesToStr returns a string decoded by the given decoder.
 func BytesToStr(in []byte, decoder *encoding.Decoder) (string, error) {
 	i := bytes.NewReader(in)
 	o := transform.NewReader(i, decoder)
-	d, e := ioutil.ReadAll(o)
-	if e != nil {
-		return "", e
+	d, err := ioutil.ReadAll(o)
+	if err != nil {
+		return "", fmt.Errorf("BytesToStr: error reading all: %w", err)
 	}
 	return string(d), nil
 }
