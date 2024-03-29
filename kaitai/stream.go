@@ -52,7 +52,11 @@ func (k *Stream) EOF() (bool, error) {
 	}
 
 	_, err = k.Seek(curPos, io.SeekStart)
-	return isEOF, err
+	if err != nil {
+		return false, fmt.Errorf("EOF: error seeking back to current position: %w", err)
+	}
+
+	return isEOF, nil
 }
 
 // Size returns the number of bytes of the stream.
@@ -67,7 +71,7 @@ func (k *Stream) Size() (int64, error) {
 	// Seek to the end of the File object
 	_, err = k.Seek(0, io.SeekEnd)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("Size: error seeking to end of the stream: %w", err)
 	}
 	// Remember position, which is equal to the full length
 	fullSize, err := k.Pos()
@@ -76,12 +80,19 @@ func (k *Stream) Size() (int64, error) {
 	}
 	// Seek back to the current position
 	_, err = k.Seek(curPos, io.SeekStart)
-	return fullSize, err
+	if err != nil {
+		return fullSize, fmt.Errorf("Size: error seeking back to current position: %w", err)
+	}
+	return fullSize, nil
 }
 
 // Pos returns the current position of the stream.
 func (k *Stream) Pos() (int64, error) {
-	return k.Seek(0, io.SeekCurrent)
+	pos, err := k.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return pos, fmt.Errorf("Pos: error getting current position: %w", err)
+	}
+	return pos, nil
 }
 
 // ReadU1 reads 1 byte and returns this as uint8.
@@ -268,20 +279,23 @@ func (k *Stream) ReadBytesTerm(term byte, includeTerm, consumeTerm, eosError boo
 		// If eosError if false, ignore io.EOF and bail out on any other error
 		// If eosError is true, bail out on any error, including io.EOF
 		if eosError || !errors.Is(err, io.EOF) {
-			return slice, err
+			return slice, fmt.Errorf("ReadBytesTerm: error reading bytes until term byte: %w", err)
 		}
 	}
 	_, err = k.Seek(pos+int64(len(slice)), io.SeekStart)
 	if err != nil {
-		return []byte{}, err
+		return []byte{}, fmt.Errorf("ReadBytesTerm: error seeking past term byte: %w", err)
 	}
 	if !includeTerm {
 		slice = slice[:len(slice)-1]
 	}
 	if !consumeTerm {
 		_, err = k.Seek(-1, io.SeekCurrent)
+		if err != nil {
+			return slice, fmt.Errorf("ReadBytesTerm: error seeking to term byte: %w", err)
+		}
 	}
-	return slice, err
+	return slice, nil
 }
 
 // ReadStrEOS reads the remaining bytes as a string.
