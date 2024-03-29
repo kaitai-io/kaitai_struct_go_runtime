@@ -131,6 +131,35 @@ func TestBytesToStr(t *testing.T) {
 	}
 }
 
+func TestStrToBytes(t *testing.T) {
+	utf16 := unicode.UTF16(unicode.BigEndian, unicode.ExpectBOM)
+	type args struct {
+		in      string
+		encoder *encoding.Encoder
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    []byte
+		wantErr bool
+	}{
+		{"UTF-8 encode", args{"test", unicode.UTF8.NewEncoder()}, []byte("test"), false},
+		{"UTF-16 encode", args{"", utf16.NewEncoder()}, []byte{0xFE, 0xFF}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := StrToBytes(tt.args.in, tt.args.encoder)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("StrToBytes() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("StrToBytes() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStringReverse(t *testing.T) {
 	type args struct {
 		s string
