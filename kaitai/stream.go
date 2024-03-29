@@ -14,6 +14,13 @@ import (
 // APIVersion defines the currently used API version.
 const APIVersion = 0x0001
 
+// ErrInvalidSizeRequested is returned when KaitaiStream methods are called
+// with a size argument which does not make sense:
+//
+// - ReadBytes with negative number of bytes
+// - ReadBitsIntBe/Le with more than 8 bytes
+var ErrInvalidSizeRequested = errors.New("invalid size requested")
+
 // A Stream represents a sequence of bytes. It encapsulates reading from files
 // and memory, stores pointer to its current position, and allows
 // reading/writing of various primitives.
@@ -220,7 +227,7 @@ func (k *Stream) ReadF8le() (v float64, err error) {
 // ReadBytes reads n bytes and returns those as a byte array.
 func (k *Stream) ReadBytes(n int) (b []byte, err error) {
 	if n < 0 {
-		return nil, fmt.Errorf("ReadBytes(%d): negative number of bytes to read", n)
+		return nil, fmt.Errorf("ReadBytes(%d): %w", n, ErrInvalidSizeRequested)
 	}
 
 	b = make([]byte, n)
@@ -336,7 +343,7 @@ func (k *Stream) ReadBitsIntBe(n int) (res uint64, err error) {
 		// 9 bits => 2 bytes
 		bytesNeeded := ((bitsNeeded - 1) / 8) + 1 // `ceil(bitsNeeded / 8)`
 		if bytesNeeded > 8 {
-			return res, fmt.Errorf("ReadBitsIntBe(%d): more than 8 bytes requested", n)
+			return res, fmt.Errorf("ReadBitsIntBe(%d): more than 8 bytes requested: %w", n, ErrInvalidSizeRequested)
 		}
 		_, err = k.Read(k.buf[:bytesNeeded])
 		if err != nil {
@@ -377,7 +384,7 @@ func (k *Stream) ReadBitsIntLe(n int) (res uint64, err error) {
 		// 9 bits => 2 bytes
 		bytesNeeded := ((bitsNeeded - 1) / 8) + 1 // `ceil(bitsNeeded / 8)`
 		if bytesNeeded > 8 {
-			return res, fmt.Errorf("ReadBitsIntLe(%d): more than 8 bytes requested", n)
+			return res, fmt.Errorf("ReadBitsIntLe(%d): more than 8 bytes requested: %w", n, ErrInvalidSizeRequested)
 		}
 		_, err = k.Read(k.buf[:bytesNeeded])
 		if err != nil {
