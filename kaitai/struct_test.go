@@ -13,7 +13,7 @@ type oneStruct struct {
 	_io *Stream
 }
 
-func (s *oneStruct) Kaitai_IO() *Stream {
+func (s *oneStruct) IO_() *Stream {
 	return s._io
 }
 
@@ -22,13 +22,13 @@ type twoStruct struct {
 	_io *Stream
 }
 
-func (s *twoStruct) Kaitai_IO() *Stream {
+func (s *twoStruct) IO_() *Stream {
 	return s._io
 }
 
 func WorkWithStruct(t *testing.T, s Struct, expectedSize int) {
 	t.Helper()
-	actualSize, err := s.Kaitai_IO().Size()
+	actualSize, err := s.IO_().Size()
 	assert.Nil(t, err)
 	assert.Equal(t, actualSize, int64(expectedSize))
 }
