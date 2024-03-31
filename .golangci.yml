@@ -87,3 +87,4 @@ issues:
   # excluded by default patterns execute `golangci-lint run --help`
   exclude:
      - Using the variable on range scope `tt` in function literal
+     - "var-naming: don't use underscores in Go names; method IO_ should be IO"
