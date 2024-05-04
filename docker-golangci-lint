@@ -1,5 +1,6 @@
 #!/bin/sh -ef
 
 # Runs golangci-lint locally using Docker without installing it on machine
+# (see https://golangci-lint.run/welcome/install/#docker)
 
-docker run -t --rm -v $(pwd):/app -v ~/.cache/golangci-lint/v1.57.2:/root/.cache -w /app golangci/golangci-lint:v1.57.2 golangci-lint run -v
+docker run -t --rm -v $(pwd):/app -v ~/.cache/golangci-lint/v1.58.0:/root/.cache -w /app golangci/golangci-lint:v1.58.0 golangci-lint run -v
