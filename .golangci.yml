@@ -1,85 +1,42 @@
-# https://github.com/golangci/golangci-lint/blob/v1.44.0/.golangci.example.yml#L1540-L1628
+# https://github.com/golangci/golangci-lint/blob/4bf574a12bb61234e28e3d6172be6ed95b0e8baf/.golangci.reference.yml#L2610
 linters:
-  # Disable all linters.
-  disable-all: true
-  # Enable specific linter
-  # https://golangci-lint.run/usage/linters/#enabled-by-default-linters
-  enable:
-    - asciicheck
-    - bidichk
-    - bodyclose
-    - contextcheck
-    - cyclop
-    # - depguard
-    - dogsled
-    - dupl
-    - durationcheck
-    - errcheck
-    - errname
-    - errorlint
-    - exhaustive
-    # - exhaustivestruct
-    - exportloopref
-    - forbidigo
-    - forcetypeassert
-    - funlen
-    - gci
-    - gochecknoglobals
-    - gochecknoinits
-    # - gocognit
-    - goconst
-    - gocritic
-    # - gocyclo
-    # - godot
-    # - godox
-    - goerr113
-    - gofmt
-    # - gofumpt
-    # - goheader
-    # - goimports
-    # - gomnd
-    - gomoddirectives
-    # - gomodguard
-    # - goprintffuncname
-    - gosec
-    - gosimple
-    - govet
-    - importas
-    - ineffassign
-    - ireturn
-    - lll
-    - makezero
-    - misspell
-    - nakedret
-    # - nestif
-    - nilerr
-    - nilnil
-    # - nlreturn
-    - noctx
-    - nolintlint
-    # - paralleltest
-    - prealloc
-    - predeclared
-    - promlinter
-    - revive
-    - rowserrcheck
-    - sqlclosecheck
-    - staticcheck
-    - stylecheck
-    - tagliatelle
-    - tenv
-    # - testpackage
-    - thelper
-    - tparallel
-    - typecheck
-    - unconvert
-    - unparam
-    - unused
-    # - varnamelen
-    - wastedassign
-    - whitespace
-    - wrapcheck
-    # - wsl
+  # Enable all available linters.
+  enable-all: true
+  # Disable specific linter
+  # https://golangci-lint.run/usage/linters/#disabled-by-default-linters--e--enable
+  disable:
+    - depguard
+    - exhaustruct
+    - gocognit
+    - gocyclo
+    - godot
+    - godox
+    - gofumpt
+    - goheader
+    - goimports
+    - gomodguard
+    - goprintffuncname
+    - mnd
+    - nestif
+    - nlreturn
+    - paralleltest
+    - testpackage
+    - varnamelen
+    - wsl
+
+    # https://github.com/golangci/golangci-lint/blob/4bf574a12bb61234e28e3d6172be6ed95b0e8baf/.golangci.reference.yml#L2724-L2734
+    - deadcode # Deprecated
+    - execinquery # Deprecated
+    - exhaustivestruct # Deprecated
+    - golint # Deprecated
+    - ifshort # Deprecated
+    - interfacer # Deprecated
+    - maligned # Deprecated
+    - gomnd # Deprecated
+    - nosnakecase # Deprecated
+    - scopelint # Deprecated
+    - structcheck # Deprecated
+    - varcheck # Deprecated
 issues:
   # List of regexps of issue texts to exclude, empty list by default.
   # But independently from this option we use default exclude patterns,
