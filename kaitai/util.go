@@ -77,14 +77,15 @@ func StringReverse(s string) string {
 // BytesTerminate terminates the given byte slice using the provided sentinel,
 // optionally including the sentinel itself in the terminated byte slice.
 func BytesTerminate(s []byte, term byte, includeTerm bool) []byte {
-	n, srcLen := 0, len(s)
-	for n < srcLen && s[n] != term {
-		n++
+	termIndex := bytes.IndexByte(s, term)
+	if termIndex == -1 {
+		return s
 	}
-	if includeTerm && n < srcLen {
-		n++
+	newLen := termIndex
+	if includeTerm {
+		newLen += 1
 	}
-	return s[:n]
+	return s[:newLen]
 }
 
 // BytesStripRight strips bytes of a given value off the end of the byte slice.
