@@ -128,7 +128,7 @@ func TestStream_ReadU2be(t *testing.T) {
 		wantV   uint16
 		wantErr bool
 	}{
-		{"Read", NewStream(bytes.NewReader([]byte{1})), 256, false},
+		{"Read", NewStream(bytes.NewReader([]byte{1, 0})), 256, false},
 		{"empty Read", NewStream(bytes.NewReader([]byte(""))), 0, true},
 	}
 	for _, tt := range tests {
@@ -716,9 +716,11 @@ func TestStream_ReadBitsInt(t *testing.T) {
 		{"ReadBitsIntBe", NewStream(bytes.NewReader([]byte{0xF0})), args{5}, 0x1E, false},
 		{"ReadBitsIntBe", NewStream(bytes.NewReader([]byte{0x12, 0x34, 0x56, 0xFF})), args{24}, 0x123456, false},
 		{"ReadBitsIntBe", NewStream(bytes.NewReader([]byte{0xAB, 0xC7})), args{12}, 0xABC, false},
+		{"ReadBitsIntBe", NewStream(bytes.NewReader([]byte{1, 2})), args{17}, 0, true},
 		{"ReadBitsIntLe", NewStream(bytes.NewReader([]byte{0xF0})), args{5}, 16, false},
 		{"ReadBitsIntLe", NewStream(bytes.NewReader([]byte{0x56, 0x34, 0x12, 0xFF})), args{24}, 0x123456, false},
 		{"ReadBitsIntLe", NewStream(bytes.NewReader([]byte{0xBC, 0x7A})), args{12}, 0xABC, false},
+		{"ReadBitsIntLe", NewStream(bytes.NewReader([]byte{1, 2})), args{17}, 0, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
