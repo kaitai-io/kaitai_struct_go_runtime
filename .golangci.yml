@@ -1,9 +1,10 @@
-# https://github.com/golangci/golangci-lint/blob/4bf574a12bb61234e28e3d6172be6ed95b0e8baf/.golangci.reference.yml#L2610
+# https://github.com/golangci/golangci-lint/blob/78a738f7cbcedac710e8de83e10cbf5721061114/.golangci.reference.yml#L2687
 linters:
   # Enable all available linters.
+  # Default: false
   enable-all: true
   # Disable specific linter
-  # https://golangci-lint.run/usage/linters/#disabled-by-default-linters--e--enable
+  # https://golangci-lint.run/usage/linters/#disabled-by-default
   disable:
     - depguard
     - exhaustruct
@@ -24,19 +25,9 @@ linters:
     - varnamelen
     - wsl
 
-    # https://github.com/golangci/golangci-lint/blob/4bf574a12bb61234e28e3d6172be6ed95b0e8baf/.golangci.reference.yml#L2724-L2734
-    - deadcode # Deprecated
+    # https://github.com/golangci/golangci-lint/blob/78a738f7cbcedac710e8de83e10cbf5721061114/.golangci.reference.yml#L2801-L2811
     - execinquery # Deprecated
-    - exhaustivestruct # Deprecated
-    - golint # Deprecated
-    - ifshort # Deprecated
-    - interfacer # Deprecated
-    - maligned # Deprecated
     - gomnd # Deprecated
-    - nosnakecase # Deprecated
-    - scopelint # Deprecated
-    - structcheck # Deprecated
-    - varcheck # Deprecated
 issues:
   # List of regexps of issue texts to exclude, empty list by default.
   # But independently from this option we use default exclude patterns,
