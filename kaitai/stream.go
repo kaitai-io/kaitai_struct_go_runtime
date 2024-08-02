@@ -325,9 +325,8 @@ func (k *Stream) ReadBytesTermMulti(term []byte, includeTerm, consumeTerm, eosEr
 				}
 				r = append(r, c[:n]...)
 				return r, nil
-			} else {
-				return nil, fmt.Errorf("ReadBytesTermMulti: %w", err)
 			}
+			return nil, fmt.Errorf("ReadBytesTermMulti: %w", err)
 		}
 		if bytes.Equal(c, term) {
 			if includeTerm {

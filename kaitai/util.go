@@ -83,7 +83,7 @@ func BytesTerminate(s []byte, term byte, includeTerm bool) []byte {
 	}
 	newLen := termIndex
 	if includeTerm {
-		newLen += 1
+		newLen++
 	}
 	return s[:newLen]
 }
