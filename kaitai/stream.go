@@ -271,8 +271,8 @@ func (k *Stream) ReadBytesPadTerm(size int, term, pad byte, includeTerm bool) ([
 }
 
 // ReadBytesTerm reads bytes until the term byte is reached. If includeTerm is
-// set the term bytes is included in the returned byte array. If consumeTerm
-// is set the stream continues after the term byte. If eosError is set EOF
+// true, the term byte is included in the returned byte slice. If consumeTerm is
+// true, the stream continues after the term byte. If eosError is true, EOF
 // errors result in an error.
 func (k *Stream) ReadBytesTerm(term byte, includeTerm, consumeTerm, eosError bool) ([]byte, error) {
 	r := bufio.NewReader(k)
@@ -303,6 +303,46 @@ func (k *Stream) ReadBytesTerm(term byte, includeTerm, consumeTerm, eosError boo
 		}
 	}
 	return slice, nil
+}
+
+// ReadBytesTermMulti reads chunks of len(term) bytes until it reaches a chunk
+// equal to term. If includeTerm is true, term will be included in the returned
+// byte slice. If consumeTerm is true, stream position will be left after the
+// term, otherwise a seek will be performed to get the stream position before
+// the term. If eosError is true, reaching EOF before the term is found is
+// treated as an error, otherwise no error and all bytes until EOF are returned
+// in this case.
+func (k *Stream) ReadBytesTermMulti(term []byte, includeTerm, consumeTerm, eosError bool) ([]byte, error) {
+	unitSize := len(term)
+	r := []byte{}
+	c := make([]byte, unitSize)
+	for {
+		n, err := io.ReadFull(k, c)
+		if err != nil {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+				if eosError {
+					return nil, fmt.Errorf("ReadBytesTermMulti: end of stream reached, but no terminator found")
+				}
+				r = append(r, c[:n]...)
+				return r, nil
+			} else {
+				return nil, fmt.Errorf("ReadBytesTermMulti: %w", err)
+			}
+		}
+		if bytes.Equal(c, term) {
+			if includeTerm {
+				r = append(r, c...)
+			}
+			if !consumeTerm {
+				_, err := k.Seek(-int64(unitSize), io.SeekCurrent)
+				if err != nil {
+					return nil, fmt.Errorf("ReadBytesTermMulti: error seeking back to terminator: %w", err)
+				}
+			}
+			return r, nil
+		}
+		r = append(r, c...)
+	}
 }
 
 // AlignToByte discards the remaining bits and starts reading bits at the

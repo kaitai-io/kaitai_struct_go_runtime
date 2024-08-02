@@ -88,6 +88,30 @@ func BytesTerminate(s []byte, term byte, includeTerm bool) []byte {
 	return s[:newLen]
 }
 
+// BytesTerminateMulti terminates the given byte slice using the provided byte
+// sequence term, whose first byte must appear at a position that is a multiple
+// of len(term). Occurrences at any other positions are ignored. If includeTerm
+// is true, term will be included in the returned byte slice.
+func BytesTerminateMulti(s, term []byte, includeTerm bool) []byte {
+	unitSize := len(term)
+	rest := s
+	for {
+		searchIndex := bytes.Index(rest, term)
+		if searchIndex == -1 {
+			return s
+		}
+		mod := searchIndex % unitSize
+		if mod == 0 {
+			newLen := (len(s) - len(rest)) + searchIndex
+			if includeTerm {
+				newLen += unitSize
+			}
+			return s[:newLen]
+		}
+		rest = rest[searchIndex+(unitSize-mod):]
+	}
+}
+
 // BytesStripRight strips bytes of a given value off the end of the byte slice.
 func BytesStripRight(s []byte, pad byte) []byte {
 	n := len(s)
