@@ -81,6 +81,7 @@ func TestValidationFailedError_interface(t *testing.T) {
 		{"ValidationLessThanError", NewValidationLessThanError(2, actual, io, srcPath)},
 		{"ValidationGreaterThanError", NewValidationGreaterThanError(2, actual, io, srcPath)},
 		{"ValidationNotAnyOfError", NewValidationNotAnyOfError(actual, io, srcPath)},
+		{"ValidationNotInEnumError", NewValidationNotInEnumError(actual, io, srcPath)},
 		{"ValidationExprError", NewValidationExprError(actual, io, srcPath)},
 	}
 	for _, tt := range tests {
@@ -265,6 +266,27 @@ func TestValidationNotAnyOfError_Error(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.e.Error(); got != tt.want {
 				t.Errorf("ValidationNotAnyOfError.Error() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidationNotInEnumError_Error(t *testing.T) {
+	io := NewStream(bytes.NewReader([]byte("test")))
+	tests := []struct {
+		name string
+		e    ValidationNotInEnumError
+		want string
+	}{
+		{
+			"integer", NewValidationNotInEnumError(-42, io, "/seq/0"),
+			"/seq/0: at pos 0: validation failed: not in the enum, got -42",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.e.Error(); got != tt.want {
+				t.Errorf("ValidationNotInEnumError.Error() = %q, want %q", got, tt.want)
 			}
 		})
 	}

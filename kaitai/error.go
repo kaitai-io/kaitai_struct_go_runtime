@@ -175,6 +175,32 @@ func (e ValidationNotAnyOfError) Error() string {
 	)
 }
 
+// ValidationNotInEnumError signals validation failure: we required "Actual" value
+// to be in the enum, but it turned out that it's not.
+type ValidationNotInEnumError struct {
+	actual interface{}
+	locationInfo
+}
+
+// NewValidationNotInEnumError creates a new ValidationNotInEnumError instance.
+func NewValidationNotInEnumError(actual interface{}, io *Stream, srcPath string) ValidationNotInEnumError {
+	return ValidationNotInEnumError{
+		actual,
+		newLocationInfo(io, srcPath),
+	}
+}
+
+// Actual is a getter of the actual value associated with the validation error.
+func (e ValidationNotInEnumError) Actual() interface{} { return e.actual }
+
+func (e ValidationNotInEnumError) Error() string {
+	return e.msgWithLocation(
+		validationFailedMsg(
+			fmt.Sprintf("not in the enum, got %v", e.actual),
+		),
+	)
+}
+
 // ValidationExprError signals validation failure: we required "Actual" value
 // to match the expression, but it turned out that it doesn't.
 type ValidationExprError struct {
