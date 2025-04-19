@@ -25,9 +25,8 @@ linters:
     - varnamelen
     - wsl
 
-    # https://github.com/golangci/golangci-lint/blob/78a738f7cbcedac710e8de83e10cbf5721061114/.golangci.reference.yml#L2801-L2811
-    - execinquery # Deprecated
-    - gomnd # Deprecated
+    # https://github.com/golangci/golangci-lint/blob/8b37f14162043f908949f1b363d061dc9ba713c0/.golangci.reference.yml#L239-L252
+    - tenv # Deprecated
 issues:
   # List of regexps of issue texts to exclude, empty list by default.
   # But independently from this option we use default exclude patterns,
