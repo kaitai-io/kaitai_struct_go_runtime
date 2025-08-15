@@ -1,10 +1,6 @@
-# https://github.com/golangci/golangci-lint/blob/78a738f7cbcedac710e8de83e10cbf5721061114/.golangci.reference.yml#L2687
+version: "2"
 linters:
-  # Enable all available linters.
-  # Default: false
-  enable-all: true
-  # Disable specific linter
-  # https://golangci-lint.run/usage/linters/#disabled-by-default
+  default: all
   disable:
     - depguard
     - exhaustruct
@@ -12,9 +8,7 @@ linters:
     - gocyclo
     - godot
     - godox
-    - gofumpt
     - goheader
-    - goimports
     - gomodguard
     - goprintffuncname
     - mnd
@@ -24,14 +18,29 @@ linters:
     - testpackage
     - varnamelen
     - wsl
-
-    # https://github.com/golangci/golangci-lint/blob/8b37f14162043f908949f1b363d061dc9ba713c0/.golangci.reference.yml#L239-L252
-    - tenv # Deprecated
-issues:
-  # List of regexps of issue texts to exclude, empty list by default.
-  # But independently from this option we use default exclude patterns,
-  # it can be disabled by `exclude-use-default: false`. To list all
-  # excluded by default patterns execute `golangci-lint run --help`
-  exclude:
-     - Using the variable on range scope `tt` in function literal
-     - "var-naming: don't use underscores in Go names; method IO_ should be IO"
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - path: (.+)\.go$
+        text: Using the variable on range scope `tt` in function literal
+      - path: (.+)\.go$
+        text: 'var-naming: don''t use underscores in Go names; method IO_ should be IO'
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gci
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
