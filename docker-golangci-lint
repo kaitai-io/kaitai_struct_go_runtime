@@ -1,9 +1,9 @@
 #!/bin/sh -ef
 
 # Runs golangci-lint locally using Docker without installing it on machine
-# (see https://golangci-lint.run/welcome/install/#docker)
+# (see https://golangci-lint.run/docs/welcome/install/#docker)
 
 # See https://github.com/kaitai-io/kaitai_struct_tests/blob/3c5fb218ba/docker-ci#L215-L220
 # for an explanation of why we use the `MSYS2_ARG_CONV_EXCL` environment variable
 
-MSYS2_ARG_CONV_EXCL='*' docker run -t --rm -v "$(pwd)":/app -v ~/.cache/golangci-lint/v1.64.8:/root/.cache -w /app golangci/golangci-lint:v1.64.8 golangci-lint run -v
+MSYS2_ARG_CONV_EXCL='*' docker run -t --rm -v "$(pwd)":/app -w /app golangci/golangci-lint:v2.4.0 golangci-lint run
