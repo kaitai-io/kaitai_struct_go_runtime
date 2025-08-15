@@ -6,4 +6,4 @@
 # See https://github.com/kaitai-io/kaitai_struct_tests/blob/3c5fb218ba/docker-ci#L215-L220
 # for an explanation of why we use the `MSYS2_ARG_CONV_EXCL` environment variable
 
-MSYS2_ARG_CONV_EXCL='*' docker run -t --rm -v "$(pwd)":/app -w /app golangci/golangci-lint:v2.4.0 golangci-lint run
+MSYS2_ARG_CONV_EXCL='*' docker run -t --rm -v "$(pwd)":/app -w /app golangci/golangci-lint:v2.4.0 golangci-lint run -v
