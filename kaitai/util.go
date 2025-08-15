@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/bits"
 
 	"golang.org/x/text/encoding"
@@ -47,7 +47,7 @@ func ProcessZlib(in []byte) ([]byte, error) {
 		return nil, fmt.Errorf("ProcessZlib: error initializing zlib reader: %w", err)
 	}
 
-	res, err := ioutil.ReadAll(r)
+	res, err := io.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("ProcessZlib: error reading zlib data: %w", err)
 	}
@@ -58,7 +58,7 @@ func ProcessZlib(in []byte) ([]byte, error) {
 func BytesToStr(in []byte, decoder *encoding.Decoder) (string, error) {
 	i := bytes.NewReader(in)
 	o := transform.NewReader(i, decoder)
-	d, err := ioutil.ReadAll(o)
+	d, err := io.ReadAll(o)
 	if err != nil {
 		return "", fmt.Errorf("BytesToStr: error decoding bytes with %T: %w", decoder.Transformer, err)
 	}

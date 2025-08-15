@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 )
 
@@ -240,7 +239,7 @@ func (k *Stream) ReadBytes(n int) (b []byte, err error) {
 
 // ReadBytesFull reads all remaining bytes and returns those as a byte array.
 func (k *Stream) ReadBytesFull() ([]byte, error) {
-	res, err := ioutil.ReadAll(k)
+	res, err := io.ReadAll(k)
 	if err != nil {
 		return nil, fmt.Errorf("ReadBytesFull: error reading all bytes: %w", err)
 	}
