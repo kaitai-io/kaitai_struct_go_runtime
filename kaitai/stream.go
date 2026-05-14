@@ -316,11 +316,19 @@ func (k *Stream) ReadBytesTerm(term byte, includeTerm, consumeTerm, eosError boo
 	slice, err := r.ReadBytes(term)
 
 	if err != nil {
-		// If eosError if false, ignore io.EOF and bail out on any other error
+		// If eosError is false, ignore io.EOF and bail out on any other error
 		// If eosError is true, bail out on any error, including io.EOF
 		if eosError || !errors.Is(err, io.EOF) {
 			return slice, fmt.Errorf("ReadBytesTerm: error reading bytes until term byte: %w", err)
 		}
+		// EOF reached without finding the terminator. Return the data as-is.
+		// Do not strip the last byte (no terminator to exclude) and do not
+		// seek back (no terminator to "unconsume").
+		_, seekErr := k.ReadSeeker.Seek(pos+int64(len(slice)), io.SeekStart)
+		if seekErr != nil {
+			return []byte{}, fmt.Errorf("ReadBytesTerm: error seeking: %w", seekErr)
+		}
+		return slice, nil
 	}
 	_, err = k.ReadSeeker.Seek(pos+int64(len(slice)), io.SeekStart)
 	if err != nil {
