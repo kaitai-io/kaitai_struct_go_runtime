@@ -120,3 +120,28 @@ func BytesStripRight(s []byte, pad byte) []byte {
 	}
 	return s[:n]
 }
+
+// CustomProcessor is the interface that all custom process types must implement.
+// The generated parser builds an instance via the user-provided constructor
+// New<TypeName>(args...) in the same package and passes it to ProcessCustom.
+//
+// Example implementation:
+//
+//	type MyProcessor struct{ key byte }
+//
+//	func NewMyProcessor(key uint8) *MyProcessor { return &MyProcessor{key: key} }
+//
+//	func (p *MyProcessor) Decode(src []byte) ([]byte, error) {
+//	    out := make([]byte, len(src))
+//	    for i, b := range src { out[i] = b ^ p.key }
+//	    return out, nil
+//	}
+type CustomProcessor interface {
+	Decode(src []byte) ([]byte, error)
+}
+
+// ProcessCustom runs a user-supplied custom decoder over src. It is the runtime
+// entry point that generated parsers call for `process: my_proc(args)` fields.
+func ProcessCustom(d CustomProcessor, src []byte) ([]byte, error) {
+	return d.Decode(src)
+}
