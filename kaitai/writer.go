@@ -24,13 +24,27 @@ func NewWriter(w io.Writer) *Writer {
 	return &Writer{Writer: w}
 }
 
-// Pos returns the current position in the stream, if the stream is seekable.
+// Write aligns pending bits before writing p. The returned count excludes
+// the alignment byte, if any.
+func (k *Writer) Write(p []byte) (int, error) {
+	err := k.AlignToByte()
+	if err != nil {
+		return 0, err
+	}
+	return k.writeNotAligned(p)
+}
+
+// Pos returns the position after any pending partial byte, if the stream is
+// seekable. It does not flush pending bits.
 func (k *Writer) Pos() (int64, error) {
 	switch w := k.Writer.(type) {
 	case io.Seeker:
 		n, err := w.Seek(0, io.SeekCurrent)
 		if err != nil {
 			return 0, fmt.Errorf("Pos: failed to get pos: %w", err)
+		}
+		if k.bitsLeft > 0 {
+			n++
 		}
 		return n, nil
 	default:
@@ -63,7 +77,7 @@ func (k *Writer) WriteU1(v uint8) error {
 		return err
 	}
 	k.buf[0] = v
-	_, err = k.Write(k.buf[:1])
+	_, err = k.writeNotAligned(k.buf[:1])
 	if err != nil {
 		return fmt.Errorf("WriteU1: failed to write uint8: %w", err)
 	}
@@ -77,7 +91,7 @@ func (k *Writer) WriteU2be(v uint16) error {
 		return err
 	}
 	binary.BigEndian.PutUint16(k.buf[:2], v)
-	_, err = k.Write(k.buf[:2])
+	_, err = k.writeNotAligned(k.buf[:2])
 	if err != nil {
 		return fmt.Errorf("WriteU2be: failed to write uint16: %w", err)
 	}
@@ -91,7 +105,7 @@ func (k *Writer) WriteU4be(v uint32) error {
 		return err
 	}
 	binary.BigEndian.PutUint32(k.buf[:4], v)
-	_, err = k.Write(k.buf[:4])
+	_, err = k.writeNotAligned(k.buf[:4])
 	if err != nil {
 		return fmt.Errorf("WriteU4be: failed to write uint32: %w", err)
 	}
@@ -105,7 +119,7 @@ func (k *Writer) WriteU8be(v uint64) error {
 		return err
 	}
 	binary.BigEndian.PutUint64(k.buf[:8], v)
-	_, err = k.Write(k.buf[:8])
+	_, err = k.writeNotAligned(k.buf[:8])
 	if err != nil {
 		return fmt.Errorf("WriteU8be: failed to write uint64: %w", err)
 	}
@@ -119,7 +133,7 @@ func (k *Writer) WriteU2le(v uint16) error {
 		return err
 	}
 	binary.LittleEndian.PutUint16(k.buf[:2], v)
-	_, err = k.Write(k.buf[:2])
+	_, err = k.writeNotAligned(k.buf[:2])
 	if err != nil {
 		return fmt.Errorf("WriteU2le: failed to write uint16: %w", err)
 	}
@@ -133,7 +147,7 @@ func (k *Writer) WriteU4le(v uint32) error {
 		return err
 	}
 	binary.LittleEndian.PutUint32(k.buf[:4], v)
-	_, err = k.Write(k.buf[:4])
+	_, err = k.writeNotAligned(k.buf[:4])
 	if err != nil {
 		return fmt.Errorf("WriteU4le: failed to write uint32: %w", err)
 	}
@@ -147,7 +161,7 @@ func (k *Writer) WriteU8le(v uint64) error {
 		return err
 	}
 	binary.LittleEndian.PutUint64(k.buf[:8], v)
-	_, err = k.Write(k.buf[:8])
+	_, err = k.writeNotAligned(k.buf[:8])
 	if err != nil {
 		return fmt.Errorf("WriteU8le: failed to write uint64: %w", err)
 	}
@@ -215,7 +229,7 @@ func (k *Writer) WriteBytes(b []byte) error {
 	if err != nil {
 		return err
 	}
-	_, err = k.Write(b)
+	_, err = k.writeNotAligned(b)
 	if err != nil {
 		return fmt.Errorf("WriteBytes: failed to write bytes: %w", err)
 	}
@@ -223,11 +237,14 @@ func (k *Writer) WriteBytes(b []byte) error {
 }
 
 // WriteBytesLimit writes fixed-size data with padding or terminator.
+// It returns an error if data exceeds size.
 // term: terminator byte to write after data (-1 = no terminator).
 // padRight: padding byte to fill remaining space (-1 = use term, or 0x00 if none)
 func (k *Writer) WriteBytesLimit(data []byte, size int, term int, padRight int) error {
 	if len(data) > size {
-		data = data[:size]
+		// Invalid field lengths are caller errors, not sentinel conditions.
+		//nolint:err113
+		return fmt.Errorf("WriteBytesLimit: writing %d bytes, but %d bytes were given", size, len(data))
 	}
 	err := k.WriteBytes(data)
 	if err != nil {
@@ -290,7 +307,7 @@ func (k *Writer) WriteBitsIntBe(n int, val uint64) error {
 			buf[i] = byte(val & 0xFF)
 			val >>= 8
 		}
-		_, err := k.Write(buf)
+		_, err := k.writeNotAligned(buf)
 		if err != nil {
 			return fmt.Errorf("WriteBitsIntBe: %w", err)
 		}
@@ -322,7 +339,7 @@ func (k *Writer) WriteBitsIntLe(n int, val uint64) error {
 			buf[i] = byte(val & 0xFF)
 			val >>= 8
 		}
-		_, err := k.Write(buf)
+		_, err := k.writeNotAligned(buf)
 		if err != nil {
 			return fmt.Errorf("WriteBitsIntLe: %w", err)
 		}
@@ -346,10 +363,19 @@ func (k *Writer) AlignToByte() error {
 		k.bitsLeft = 0
 		k.bits = 0
 		k.buf[0] = byte(b)
-		_, err := k.Write(k.buf[:1])
+		_, err := k.writeNotAligned(k.buf[:1])
 		if err != nil {
 			return fmt.Errorf("AlignToByte: %w", err)
 		}
 	}
 	return nil
+}
+
+// writeNotAligned writes bytes without flushing the pending bit buffer.
+func (k *Writer) writeNotAligned(p []byte) (int, error) {
+	n, err := k.Writer.Write(p)
+	if err == nil && n != len(p) {
+		err = io.ErrShortWrite
+	}
+	return n, err
 }

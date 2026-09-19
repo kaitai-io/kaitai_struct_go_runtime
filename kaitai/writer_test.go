@@ -2,10 +2,347 @@ package kaitai
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"reflect"
 	"testing"
 )
+
+type shortWriter struct{}
+
+func (shortWriter) Write(p []byte) (int, error) {
+	return len(p) / 2, nil
+}
+
+func TestWriterShortWrite(t *testing.T) {
+	err := NewWriter(shortWriter{}).WriteU2be(0x1234)
+	if !errors.Is(err, io.ErrShortWrite) {
+		t.Fatalf("WriteU2be() error = %v, want %v", err, io.ErrShortWrite)
+	}
+}
+
+func TestWriterWriteAligns(t *testing.T) {
+	var buf bytes.Buffer
+	w := NewWriter(&buf)
+	err := w.WriteBitsIntBe(3, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := w.Write([]byte{0x12})
+	if err != nil || n != 1 {
+		t.Fatalf("Write() = (%d, %v), want (1, nil)", n, err)
+	}
+	if !bytes.Equal(buf.Bytes(), []byte{0xa0, 0x12}) {
+		t.Fatalf("Write() bytes = %x, want a012", buf.Bytes())
+	}
+}
+
+func TestWriterPosPendingBits(t *testing.T) {
+	buf := NewSeekableBuffer(nil)
+	w := NewWriter(buf)
+	err := w.WriteBitsIntBe(3, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pos, err := w.Pos()
+	if err != nil || pos != 1 {
+		t.Fatalf("Pos() = (%d, %v), want (1, nil)", pos, err)
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("Pos() flushed pending bits: %x", buf.Bytes())
+	}
+}
+
+func TestWriteBytesLimitRejectsOverflow(t *testing.T) {
+	var buf bytes.Buffer
+	err := NewWriter(&buf).WriteBytesLimit([]byte{1, 2}, 1, 0, 0)
+	if err == nil {
+		t.Fatal("WriteBytesLimit() accepted more bytes than the field size")
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("WriteBytesLimit() wrote oversized data: %x", buf.Bytes())
+	}
+}
+
+type writerCase struct {
+	name  string
+	write func(*Writer) error
+	want  string
+}
+
+func byteWriterCases() []writerCase {
+	return []writerCase{
+		{"u1", func(w *Writer) error { return w.WriteU1(0xfe) }, "\xfe"},
+		{"u2be", func(w *Writer) error { return w.WriteU2be(0x1234) }, "\x12\x34"},
+		{"u2le", func(w *Writer) error { return w.WriteU2le(0x1234) }, "\x34\x12"},
+		{"u4be", func(w *Writer) error { return w.WriteU4be(0x12345678) }, "\x12\x34\x56\x78"},
+		{"u4le", func(w *Writer) error { return w.WriteU4le(0x12345678) }, "\x78\x56\x34\x12"},
+		{"u8be", func(w *Writer) error { return w.WriteU8be(0x123456789abcdef0) }, "\x12\x34\x56\x78\x9a\xbc\xde\xf0"},
+		{"u8le", func(w *Writer) error { return w.WriteU8le(0x123456789abcdef0) }, "\xf0\xde\xbc\x9a\x78\x56\x34\x12"},
+		{"s1", func(w *Writer) error { return w.WriteS1(-2) }, "\xfe"},
+		{"s2be", func(w *Writer) error { return w.WriteS2be(-2) }, "\xff\xfe"},
+		{"s2le", func(w *Writer) error { return w.WriteS2le(-2) }, "\xfe\xff"},
+		{"s4be", func(w *Writer) error { return w.WriteS4be(-2) }, "\xff\xff\xff\xfe"},
+		{"s4le", func(w *Writer) error { return w.WriteS4le(-2) }, "\xfe\xff\xff\xff"},
+		{"s8be", func(w *Writer) error { return w.WriteS8be(-2) }, "\xff\xff\xff\xff\xff\xff\xff\xfe"},
+		{"s8le", func(w *Writer) error { return w.WriteS8le(-2) }, "\xfe\xff\xff\xff\xff\xff\xff\xff"},
+		{"f4be", func(w *Writer) error { return w.WriteF4be(-1.5) }, "\xbf\xc0\x00\x00"},
+		{"f4le", func(w *Writer) error { return w.WriteF4le(-1.5) }, "\x00\x00\xc0\xbf"},
+		{"f8be", func(w *Writer) error { return w.WriteF8be(-1.5) }, "\xbf\xf8\x00\x00\x00\x00\x00\x00"},
+		{"f8le", func(w *Writer) error { return w.WriteF8le(-1.5) }, "\x00\x00\x00\x00\x00\x00\xf8\xbf"},
+		{"bytes", func(w *Writer) error { return w.WriteBytes([]byte{0x12, 0x34}) }, "\x12\x34"},
+		{"empty bytes", func(w *Writer) error { return w.WriteBytes(nil) }, ""},
+		{"limit", func(w *Writer) error { return w.WriteBytesLimit([]byte{0x12}, 3, 0, 0xff) }, "\x12\x00\xff"},
+		{"zero limit", func(w *Writer) error { return w.WriteBytesLimit(nil, 0, -1, -1) }, ""},
+		{"write", func(w *Writer) error { _, err := w.Write([]byte{0x12, 0x34}); return err }, "\x12\x34"},
+	}
+}
+
+func TestWriterByteOperationsAlign(t *testing.T) {
+	for _, order := range []struct {
+		name string
+		bits func(*Writer, int, uint64) error
+		pad  byte
+	}{
+		{"be", (*Writer).WriteBitsIntBe, 0xa0},
+		{"le", (*Writer).WriteBitsIntLe, 0x05},
+	} {
+		for _, tt := range byteWriterCases() {
+			t.Run(order.name+"/"+tt.name, func(t *testing.T) {
+				var buf bytes.Buffer
+				w := NewWriter(&buf)
+				err := order.bits(w, 3, 5)
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = tt.write(w)
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := string([]byte{order.pad}) + tt.want
+				if buf.String() != want {
+					t.Fatalf("bytes = %x, want %x", buf.Bytes(), want)
+				}
+				err = w.AlignToByte()
+				if err != nil || buf.String() != want {
+					t.Fatalf("second alignment: bytes = %x, error = %v", buf.Bytes(), err)
+				}
+			})
+		}
+	}
+}
+
+type errorWriter struct {
+	err error
+}
+
+func (w errorWriter) Write([]byte) (int, error) {
+	return 0, w.err
+}
+
+func TestWriterErrors(t *testing.T) {
+	underlying := io.ErrClosedPipe
+	cases := append(byteWriterCases(),
+		writerCase{"bits be", func(w *Writer) error { return w.WriteBitsIntBe(16, 0x1234) }, "\x12\x34"},
+		writerCase{"bits le", func(w *Writer) error { return w.WriteBitsIntLe(16, 0x1234) }, "\x34\x12"},
+	)
+	for _, tt := range cases {
+		for _, failure := range []struct {
+			name string
+			out  io.Writer
+			want error
+		}{
+			{"short", shortWriter{}, io.ErrShortWrite},
+			{"error", errorWriter{underlying}, underlying},
+		} {
+			if tt.want == "" && failure.name == "short" {
+				continue
+			}
+			t.Run(tt.name+"/"+failure.name, func(t *testing.T) {
+				err := tt.write(NewWriter(failure.out))
+				if !errors.Is(err, failure.want) {
+					t.Fatalf("error = %v, want %v", err, failure.want)
+				}
+			})
+		}
+	}
+}
+
+func TestWriterAlignmentErrors(t *testing.T) {
+	for _, bits := range []struct {
+		name  string
+		write func(*Writer, int, uint64) error
+	}{
+		{"be", (*Writer).WriteBitsIntBe},
+		{"le", (*Writer).WriteBitsIntLe},
+	} {
+		for _, tt := range byteWriterCases() {
+			t.Run(bits.name+"/"+tt.name, func(t *testing.T) {
+				w := NewWriter(shortWriter{})
+				err := bits.write(w, 3, 5)
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = tt.write(w)
+				if !errors.Is(err, io.ErrShortWrite) {
+					t.Fatalf("alignment error = %v, want %v", err, io.ErrShortWrite)
+				}
+			})
+		}
+	}
+}
+
+func TestWriteBitsBoundaryBytes(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		write func(*Writer, int, uint64) error
+		want  string
+	}{
+		{"be", (*Writer).WriteBitsIntBe, "\xb7\x80"},
+		{"le", (*Writer).WriteBitsIntLe, "\xc5\x0b"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			w := NewWriter(&buf)
+			err := tt.write(w, 3, 5)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = tt.write(w, 9, 0x178)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = w.AlignToByte()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if buf.String() != tt.want {
+				t.Fatalf("bytes = %x, want %x", buf.Bytes(), tt.want)
+			}
+		})
+	}
+}
+
+func TestWriterSeekPendingBits(t *testing.T) {
+	for _, order := range []struct {
+		name  string
+		write func(*Writer, int, uint64) error
+		pad   byte
+	}{
+		{"be", (*Writer).WriteBitsIntBe, 0xa0},
+		{"le", (*Writer).WriteBitsIntLe, 0x05},
+	} {
+		for _, tt := range []struct {
+			name   string
+			whence int
+			want   int64
+		}{
+			{"start", io.SeekStart, 0},
+			{"current", io.SeekCurrent, 1},
+			{"end", io.SeekEnd, 2},
+		} {
+			t.Run(order.name+"/"+tt.name, func(t *testing.T) {
+				buf := NewSeekableBuffer([]byte{0x11, 0x22})
+				w := NewWriter(buf)
+				err := order.write(w, 3, 5)
+				if err != nil {
+					t.Fatal(err)
+				}
+				checkWriterPos(t, w, 1)
+				pos, err := w.Seek(0, tt.whence)
+				if err != nil || pos != tt.want {
+					t.Fatalf("Seek() = (%d, %v), want (%d, nil)", pos, err, tt.want)
+				}
+				if !bytes.Equal(buf.Bytes(), []byte{order.pad, 0x22}) {
+					t.Fatalf("Seek() did not align before moving: %x", buf.Bytes())
+				}
+				checkWriterPos(t, w, tt.want)
+			})
+		}
+	}
+}
+
+func checkWriterPos(t *testing.T, w *Writer, want int64) {
+	t.Helper()
+	pos, err := w.Pos()
+	if err != nil || pos != want {
+		t.Fatalf("Pos() = (%d, %v), want (%d, nil)", pos, err, want)
+	}
+}
+
+type failingSeeker struct {
+	bytes.Buffer
+
+	err error
+}
+
+func (w *failingSeeker) Seek(int64, int) (int64, error) {
+	return 0, w.err
+}
+
+func TestWriterSeekErrors(t *testing.T) {
+	want := io.ErrClosedPipe
+	w := NewWriter(&failingSeeker{err: want})
+	for _, tt := range []struct {
+		name string
+		call func() (int64, error)
+	}{
+		{"pos", w.Pos},
+		{"seek", func() (int64, error) { return w.Seek(0, io.SeekStart) }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.call()
+			if !errors.Is(err, want) {
+				t.Fatalf("error = %v, want %v", err, want)
+			}
+		})
+	}
+}
+
+type failAfterWriter struct {
+	remaining int
+	err       error
+}
+
+func (w *failAfterWriter) Write(p []byte) (int, error) {
+	if w.remaining == 0 {
+		return 0, w.err
+	}
+	w.remaining--
+	return len(p), nil
+}
+
+func TestWriteBytesLimitErrors(t *testing.T) {
+	want := io.ErrClosedPipe
+	for _, tt := range []struct {
+		name      string
+		remaining int
+	}{
+		{"data", 0},
+		{"terminator", 1},
+		{"padding", 2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			w := NewWriter(&failAfterWriter{remaining: tt.remaining, err: want})
+			err := w.WriteBytesLimit([]byte{0x12}, 4, 0, 0xff)
+			if !errors.Is(err, want) {
+				t.Fatalf("error = %v, want %v", err, want)
+			}
+		})
+	}
+}
+
+func TestWriterWriteAlignmentErrorCount(t *testing.T) {
+	w := NewWriter(shortWriter{})
+	err := w.WriteBitsIntBe(3, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := w.Write([]byte{0x12, 0x34})
+	if n != 0 || !errors.Is(err, io.ErrShortWrite) {
+		t.Fatalf("Write() = (%d, %v), want (0, %v)", n, err, io.ErrShortWrite)
+	}
+}
 
 func TestNewWriter(t *testing.T) {
 	tests := []struct {
@@ -503,7 +840,6 @@ func TestWriter_WriteBytesLimit(t *testing.T) {
 		{"shorter, padRight only", []byte{0x01, 0x02}, 5, -1, 0xAA, []byte{0x01, 0x02, 0xAA, 0xAA, 0xAA}},
 		{"shorter, term + padRight", []byte{0x01}, 4, 0x55, 0xAA, []byte{0x01, 0x55, 0xAA, 0xAA}},
 		{"equal length", []byte{0x01, 0x02, 0x03}, 3, -1, -1, []byte{0x01, 0x02, 0x03}},
-		{"longer, truncated", []byte{0x01, 0x02, 0x03, 0x04, 0x05}, 3, -1, -1, []byte{0x01, 0x02, 0x03}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
