@@ -2,14 +2,19 @@ package kaitai
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"math"
 )
 
-// ErrBufferCapacity indicates that a bounded write or seek would exceed its capacity.
-// This includes fixed buffers and fixed-size fields written with WriteBytesLimit.
+// ErrBufferCapacity indicates that a write or seek would exceed its bounded or
+// representable capacity. This includes fixed buffers, fixed-size fields written
+// with WriteBytesLimit, and growable buffers whose requested range cannot be
+// represented or allocated.
 var ErrBufferCapacity = errors.New("fixed buffer capacity exceeded")
 
 // SeekableBuffer is an in-memory buffer that implements io.ReadWriteSeeker.
+// A rejected write preserves both its contents and current position.
 type SeekableBuffer struct {
 	data  []byte
 	pos   int64
@@ -44,15 +49,26 @@ func (sb *SeekableBuffer) Read(p []byte) (n int, err error) {
 }
 
 func (sb *SeekableBuffer) Write(p []byte) (n int, err error) {
-	if sb.fixed && int64(len(p)) > int64(len(sb.data))-sb.pos {
-		return 0, ErrBufferCapacity
+	writeLen := int64(len(p))
+	if sb.pos > math.MaxInt64-writeLen {
+		return 0, fmt.Errorf("SeekableBuffer.Write: requested range overflows: %w", ErrBufferCapacity)
 	}
-	end := sb.pos + int64(len(p))
-	if end > int64(len(sb.data)) {
+	end64 := sb.pos + writeLen
+	if sb.fixed && end64 > int64(len(sb.data)) {
+		return 0, fmt.Errorf("SeekableBuffer.Write: requested range exceeds fixed capacity: %w", ErrBufferCapacity)
+	}
+	maxInt := int64(^uint(0) >> 1)
+	if end64 > maxInt {
+		return 0, fmt.Errorf("SeekableBuffer.Write: requested range is not representable: %w", ErrBufferCapacity)
+	}
+	end := int(end64)
+	if end > len(sb.data) {
 		// Grow buffer
-		if end > int64(cap(sb.data)) {
-			newData := make([]byte, end, end*2)
-			copy(newData, sb.data)
+		if end > cap(sb.data) {
+			newData, ok := growSeekableBuffer(sb.data, end)
+			if !ok {
+				return 0, fmt.Errorf("SeekableBuffer.Write: requested range cannot be allocated: %w", ErrBufferCapacity)
+			}
 			sb.data = newData
 		} else {
 			sb.data = sb.data[:end]
@@ -61,6 +77,23 @@ func (sb *SeekableBuffer) Write(p []byte) (n int, err error) {
 	n = copy(sb.data[sb.pos:], p)
 	sb.pos += int64(n)
 	return n, nil
+}
+
+func growSeekableBuffer(data []byte, end int) (grown []byte, ok bool) {
+	defer func() {
+		if recover() != nil {
+			grown = nil
+			ok = false
+		}
+	}()
+	newCap := end
+	maxInt := int(^uint(0) >> 1)
+	if end <= maxInt/2 {
+		newCap = end * 2
+	}
+	grown = make([]byte, end, newCap)
+	copy(grown, data)
+	return grown, true
 }
 
 func (sb *SeekableBuffer) Seek(offset int64, whence int) (int64, error) {

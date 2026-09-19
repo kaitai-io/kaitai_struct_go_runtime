@@ -268,6 +268,39 @@ func TestSeekableBuffer_WriteGrowAfterSeek(t *testing.T) {
 	}
 }
 
+func TestSeekableBuffer_WriteRejectsUnrepresentableGrowthAtomically(t *testing.T) {
+	maxInt := int64(^uint(0) >> 1)
+	tests := []struct {
+		name string
+		pos  int64
+	}{
+		{"end overflow", math.MaxInt64},
+		{"capacity growth overflow", maxInt/2 + 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sb := NewSeekableBuffer([]byte{0xaa, 0xbb})
+			_, err := sb.Seek(tt.pos, io.SeekStart)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before := bytes.Clone(sb.Bytes())
+
+			n, err := sb.Write([]byte{0xcc})
+			if n != 0 || !errors.Is(err, ErrBufferCapacity) {
+				t.Fatalf("Write = (%d, %v), want (0, ErrBufferCapacity)", n, err)
+			}
+			if !bytes.Equal(sb.Bytes(), before) {
+				t.Fatalf("bytes changed after rejected growth: %x, want %x", sb.Bytes(), before)
+			}
+			pos, seekErr := sb.Seek(0, io.SeekCurrent)
+			if seekErr != nil || pos != tt.pos {
+				t.Fatalf("position after rejected growth = (%d, %v), want (%d, nil)", pos, seekErr, tt.pos)
+			}
+		})
+	}
+}
+
 func TestSeekableBuffer_Seek(t *testing.T) {
 	tests := []struct {
 		name    string
