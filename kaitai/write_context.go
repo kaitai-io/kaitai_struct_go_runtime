@@ -18,6 +18,7 @@ type WriteContext struct {
 	finishing bool
 	finished  bool
 	closed    bool
+	scoped    bool
 }
 
 type writeFrame struct {
@@ -30,6 +31,31 @@ func NewWriteContext() *WriteContext {
 	c := &WriteContext{objects: make(map[any]bool)}
 	c.current = &c.root
 	return c
+}
+
+// Run owns an entire independent write: it invokes write, finishes pending
+// operations if writing succeeds, and always closes the context before returning.
+// The context must be new. Generated independent writers use this bounded scope
+// to permit synchronous reentry of a graph already bound to a suspended session.
+func (c *WriteContext) Run(write func() error) error {
+	if c == nil || c.closed || c.finished || c.finishing || c.scoped ||
+		len(c.objects) != 0 || len(c.root.children) != 0 || len(c.children) != 0 {
+		return ErrWriteContextClosed
+	}
+	c.scoped = true
+	defer c.Close()
+	err := write()
+	if err != nil {
+		return err
+	}
+	return c.Finish()
+}
+
+// IsScoped reports whether Run currently owns this context's complete lifetime.
+// A scoped context is guaranteed to restore its graph bindings before Run returns;
+// a caller-managed context may instead remain outstanding after a sequence call.
+func (c *WriteContext) IsScoped() bool {
+	return c != nil && c.scoped && !c.closed
 }
 
 // Enter binds a generated object until Close. object must be a comparable

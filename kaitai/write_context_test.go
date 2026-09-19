@@ -142,3 +142,55 @@ func TestWriteContextFailureRestoresWithoutFlushingAndRejectsDuplicateBinding(t 
 	}
 	require.NoError(t, child.WriteBack())
 }
+
+func TestWriteContextRunBoundsReentryPermissionAndRestoresOnFailure(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		context := NewWriteContext()
+		restored, completed := false, false
+		err := context.Run(func() error {
+			require.True(t, context.IsScoped())
+			leave, err := context.Enter(new(int), func() { restored = true })
+			if err != nil {
+				return err
+			}
+			defer leave()
+			context.Defer(func() error { completed = true; return nil })
+			if fail {
+				return io.ErrClosedPipe
+			}
+			return nil
+		})
+		if fail {
+			require.ErrorIs(t, err, io.ErrClosedPipe)
+		} else {
+			require.NoError(t, err)
+		}
+		require.True(t, restored)
+		require.Equal(t, !fail, completed)
+		require.False(t, context.IsScoped())
+		_, err = context.Enter(new(int), func() {})
+		require.ErrorIs(t, err, ErrWriteContextClosed)
+	}
+}
+
+func TestWriteContextRunRejectsExistingOutstandingBindings(t *testing.T) {
+	context := NewWriteContext()
+	defer context.Close()
+	leave, err := context.Enter(new(int), func() {})
+	require.NoError(t, err)
+	leave()
+	called := false
+	err = context.Run(func() error { called = true; return nil })
+	require.ErrorIs(t, err, ErrWriteContextClosed)
+	require.False(t, called)
+	require.False(t, context.IsScoped())
+	require.NoError(t, context.Finish())
+}
+
+func TestWriteContextRunRequiresANewContext(t *testing.T) {
+	context := NewWriteContext()
+	defer context.Close()
+	context.Defer(func() error { return nil })
+	require.ErrorIs(t, context.Run(func() error { return nil }), ErrWriteContextClosed)
+	require.False(t, context.IsScoped())
+}
