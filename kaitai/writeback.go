@@ -94,14 +94,31 @@ func (k *Writer) WriteBackChildWriters() error {
 // leave partial output; no rollback of those bytes is attempted. Success marks the
 // child flushed and subsequent calls return ErrChildAlreadyWrittenBack.
 func (c *ChildWriter) WriteBack() error {
+	return c.writeBack(false)
+}
+
+// WriteBackNoAlign propagates a reserved child while preserving the parent's
+// pending partial byte and physical cursor. This is used by generated output
+// sessions whose root may end with bits for the caller to continue. Descendants
+// are completed depth-first. Direct WriteBack retains its alignment contract.
+func (c *ChildWriter) WriteBackNoAlign() error {
+	return c.writeBack(true)
+}
+
+func (c *ChildWriter) writeBack(noAlign bool) error {
 	if c.flushed {
 		return fmt.Errorf("WriteBack: %w", ErrChildAlreadyWrittenBack)
 	}
-	err := c.WriteBackChildWriters()
-	if err != nil {
-		return fmt.Errorf("WriteBack: descendants: %w", err)
+	for _, child := range c.children {
+		if !child.flushed {
+			err := child.writeBack(noAlign)
+			if err != nil {
+				return fmt.Errorf("WriteBack: descendants: %w", err)
+			}
+		}
 	}
-	err = c.AlignToByte()
+	c.children = nil
+	err := c.AlignToByte()
 	if err != nil {
 		return fmt.Errorf("WriteBack: align child: %w", err)
 	}
@@ -114,6 +131,11 @@ func (c *ChildWriter) WriteBack() error {
 	}
 	if len(data) != c.outerSize {
 		return fmt.Errorf("WriteBack: %w", NewConsistencyError("write-back size", c.outerSize, len(data)))
+	}
+	if noAlign {
+		bits, left, le := c.parent.bits, c.parent.bitsLeft, c.parent.bitsLe
+		c.parent.bits, c.parent.bitsLeft, c.parent.bitsLe = 0, 0, false
+		defer func() { c.parent.bits, c.parent.bitsLeft, c.parent.bitsLe = bits, left, le }()
 	}
 	return c.writeToParent(data)
 }
