@@ -67,7 +67,11 @@ func ProcessZlib(in []byte) ([]byte, error) {
 	return res, nil
 }
 
-// UnprocessZlib compresses data using the RFC 1950 zlib framing.
+// UnprocessZlib compresses data using the RFC 1950 zlib framing. It chooses the
+// smaller of the standard compressor output and a final fixed-Huffman literal
+// block, which avoids the standard compressor's empty-block overhead for small
+// fields. Output is deterministic but is not guaranteed to be byte-identical to
+// other zlib implementations or across Go versions.
 func UnprocessZlib(in []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	w := zlib.NewWriter(&buf)
@@ -80,7 +84,58 @@ func UnprocessZlib(in []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("UnprocessZlib: error flushing zlib stream: %w", err)
 	}
-	return buf.Bytes(), nil
+	return compactZlib(in, buf.Bytes()), nil
+}
+
+// compactZlib constructs a second valid encoding rather than removing bytes
+// from DEFLATE blocks. The header and Adler-32 checksum belong to the completed
+// standard encoding of the same input and can be retained unchanged.
+func compactZlib(in, standard []byte) []byte {
+	// Every literal needs at least eight bits. Two framing bytes, four checksum
+	// bytes, three block-header bits and seven end-of-block bits add eight bytes.
+	if len(in) >= len(standard)-8 {
+		return standard
+	}
+	size := len(in) + 8
+	extraBits := 2 // the block header and end-of-block leave two bits in a byte
+	for _, b := range in {
+		if b >= 144 {
+			extraBits++
+			if extraBits > 8 {
+				size++
+				extraBits = 1
+			}
+		}
+		if size >= len(standard) {
+			return standard
+		}
+	}
+	encoded := make([]byte, 2, size)
+	copy(encoded, standard[:2])
+	var pending uint32 = 3 // BFINAL=1, BTYPE=01 (fixed Huffman), least significant bit first
+	var count uint = 3
+	put := func(code uint16, width uint) {
+		pending |= uint32(bits.Reverse16(code)>>(16-width)) << count
+		count += width
+		for count >= 8 {
+			encoded = append(encoded, byte(pending))
+			pending >>= 8
+			count -= 8
+		}
+	}
+	// RFC 1951 section 3.2.6 defines the literal codes and end-of-block symbol.
+	for _, b := range in {
+		if b < 144 {
+			put(uint16(b)+0x30, 8)
+		} else {
+			put(uint16(b)-144+0x190, 9)
+		}
+	}
+	put(0, 7) // symbol 256: end of block
+	if count > 0 {
+		encoded = append(encoded, byte(pending))
+	}
+	return append(encoded, standard[len(standard)-4:]...)
 }
 
 // BytesToStr returns a string decoded by the given decoder.
