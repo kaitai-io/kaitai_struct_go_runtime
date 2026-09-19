@@ -5,10 +5,14 @@ import (
 	"io"
 )
 
+// ErrBufferCapacity indicates that a write or seek would exceed a fixed buffer's capacity.
+var ErrBufferCapacity = errors.New("fixed buffer capacity exceeded")
+
 // SeekableBuffer is an in-memory buffer that implements io.ReadWriteSeeker.
 type SeekableBuffer struct {
-	data []byte
-	pos  int64
+	data  []byte
+	pos   int64
+	fixed bool
 }
 
 // NewSeekableBuffer creates a SeekableBuffer with the given initial data.
@@ -21,6 +25,14 @@ func NewSeekableBufferSize(size int) *SeekableBuffer {
 	return &SeekableBuffer{data: make([]byte, size)}
 }
 
+// NewFixedSeekableBuffer creates a zero-filled buffer of exactly size bytes.
+// Unlike NewSeekableBufferSize, it cannot grow: writes or seeks beyond its end
+// return ErrBufferCapacity without modifying its contents or position.
+// As with NewSeekableBufferSize, a negative size panics.
+func NewFixedSeekableBuffer(size int) *SeekableBuffer {
+	return &SeekableBuffer{data: make([]byte, size), fixed: true}
+}
+
 func (sb *SeekableBuffer) Read(p []byte) (n int, err error) {
 	if sb.pos >= int64(len(sb.data)) {
 		return 0, io.EOF
@@ -31,6 +43,9 @@ func (sb *SeekableBuffer) Read(p []byte) (n int, err error) {
 }
 
 func (sb *SeekableBuffer) Write(p []byte) (n int, err error) {
+	if sb.fixed && int64(len(p)) > int64(len(sb.data))-sb.pos {
+		return 0, ErrBufferCapacity
+	}
 	end := sb.pos + int64(len(p))
 	if end > int64(len(sb.data)) {
 		// Grow buffer
@@ -48,17 +63,20 @@ func (sb *SeekableBuffer) Write(p []byte) (n int, err error) {
 }
 
 func (sb *SeekableBuffer) Seek(offset int64, whence int) (int64, error) {
-	var newPos int64
+	var base int64
 	switch whence {
 	case io.SeekStart:
-		newPos = offset
 	case io.SeekCurrent:
-		newPos = sb.pos + offset
+		base = sb.pos
 	case io.SeekEnd:
-		newPos = int64(len(sb.data)) + offset
+		base = int64(len(sb.data))
 	default:
 		return 0, errors.New("SeekableBuffer.Seek: invalid whence")
 	}
+	if sb.fixed && offset > int64(len(sb.data))-base {
+		return 0, ErrBufferCapacity
+	}
+	newPos := base + offset
 	if newPos < 0 {
 		return 0, errors.New("SeekableBuffer.Seek: negative position")
 	}
