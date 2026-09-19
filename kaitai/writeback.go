@@ -19,7 +19,9 @@ type ByteEncoder interface {
 var ErrChildAlreadyWrittenBack = errors.New("child writer already written back")
 
 // ChildWriter buffers a fixed-size logical stream for explicit write-back to a
-// reserved region of its parent. Complete all child writes before WriteBack;
+// reserved region of its parent. A child created by NewChild owns its complete
+// reservation; a child created by NewOverlayChild owns only bytes explicitly
+// written to its logical stream. Complete all child writes before WriteBack;
 // after success, further changes to the child are not propagated to its parent.
 // Like Writer, ChildWriter is not safe for concurrent use.
 type ChildWriter struct {
@@ -128,17 +130,22 @@ func (k *Writer) WriteBackChildWriters() error {
 	return nil
 }
 
-// WriteBack flushes descendants, aligns this child's pending bits, optionally
-// encodes its bytes, and writes the result at its reserved parent origin. Encoding
-// failures and size mismatches leave the parent unchanged. The parent's position
-// is restored after byte alignment, including on write or seek failure when its
-// underlying seeker permits restoration. If both writing and restoration fail,
-// the returned error wraps both causes.
+// WriteBack flushes descendants and aligns this child's pending bits. A dense
+// child created by NewChild optionally encodes its logical bytes and overwrites
+// its complete parent reservation. An overlay child created by NewOverlayChild
+// first establishes any reservation extent missing beyond the parent's physical
+// end, then writes only its covered byte ranges and preserves existing bytes in
+// uncovered ranges. Encoding failures and size mismatches leave the parent
+// unchanged. The parent's position is restored after byte alignment, including
+// on write or seek failure when its underlying seeker permits restoration. If
+// both writing and restoration fail, the returned error wraps both causes.
 //
 // A failed operation may be retried; completed descendants are skipped and the
-// entire parent region is overwritten on each attempt. Parent write failures may
-// leave partial output; no rollback of those bytes is attempted. Success marks the
-// child flushed and subsequent calls return ErrChildAlreadyWrittenBack.
+// dense child rewrites its complete reservation. An overlay retry re-establishes
+// any still-missing extent and replays all covered ranges; it never claims an
+// existing uncovered byte. Parent write failures may leave partial output; no
+// rollback of those bytes is attempted. Success marks the child flushed and
+// subsequent calls return ErrChildAlreadyWrittenBack.
 func (c *ChildWriter) WriteBack() error {
 	return c.writeBack(false)
 }
