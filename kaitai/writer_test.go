@@ -24,6 +24,19 @@ func (b *writtenWithErrorBuffer) Write(p []byte) (int, error) {
 	return n, io.ErrClosedPipe
 }
 
+type bitRewindFaultBuffer struct {
+	*SeekableBuffer
+
+	failRewind bool
+}
+
+func (b *bitRewindFaultBuffer) Seek(offset int64, whence int) (int64, error) {
+	if b.failRewind && offset == -1 && whence == io.SeekCurrent {
+		return b.pos, io.ErrUnexpectedEOF
+	}
+	return b.SeekableBuffer.Seek(offset, whence)
+}
+
 func TestWriterAlignmentDoesNotRetryAnAlreadyWrittenByte(t *testing.T) {
 	var buf writtenWithErrorBuffer
 	w := NewWriter(&buf)
@@ -372,6 +385,51 @@ func TestWriteBitsCapacityFailurePreservesPendingEndian(t *testing.T) {
 	require.NoError(t, w.AlignToByte())
 	require.Zero(t, w.bitsLeft)
 	checkWriterPos(t, w, 1)
+}
+
+func TestWriteBitsReservedRetrySeekFailureIsAtomic(t *testing.T) {
+	for _, order := range []struct {
+		name   string
+		write  func(*Writer, int, uint64) error
+		read   func(*Stream, int) (uint64, error)
+		fail   uint64
+		bitsLe bool
+	}{
+		{"be", (*Writer).WriteBitsIntBe, (*Stream).ReadBitsIntBe, 0x285fe, false},
+		{"le", (*Writer).WriteBitsIntLe, (*Stream).ReadBitsIntLe, 0x1fe84, true},
+	} {
+		t.Run(order.name, func(t *testing.T) {
+			buf := &bitRewindFaultBuffer{SeekableBuffer: NewFixedSeekableBuffer(3)}
+			w := NewWriter(buf)
+			require.NoError(t, order.write(w, 7, 0x52))
+			require.ErrorIs(t, order.write(w, 18, order.fail), ErrBufferCapacity)
+			require.True(t, w.bitsReserved)
+			buf.data = append(buf.data, 0)
+			before := bytes.Clone(buf.Bytes())
+
+			buf.failRewind = true
+			require.ErrorIs(t, order.write(w, 18, order.fail), io.ErrUnexpectedEOF)
+			require.Equal(t, uint64(0x52), w.bits)
+			require.Equal(t, 7, w.bitsLeft)
+			require.Equal(t, order.bitsLe, w.bitsLe)
+			require.True(t, w.bitsReserved)
+			require.Equal(t, before, buf.Bytes())
+			physical, err := buf.Seek(0, io.SeekCurrent)
+			require.NoError(t, err)
+			require.Equal(t, int64(1), physical)
+
+			buf.failRewind = false
+			require.NoError(t, order.write(w, 18, order.fail))
+			require.NoError(t, w.AlignToByte())
+			stream := NewStream(bytes.NewReader(buf.Bytes()))
+			gotPre, err := order.read(stream, 7)
+			require.NoError(t, err)
+			gotFail, err := order.read(stream, 18)
+			require.NoError(t, err)
+			require.Equal(t, uint64(0x52), gotPre)
+			require.Equal(t, order.fail, gotFail)
+		})
+	}
 }
 
 func TestWriterSeekPendingBits(t *testing.T) {

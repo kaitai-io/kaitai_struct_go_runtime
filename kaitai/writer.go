@@ -295,31 +295,31 @@ func (k *Writer) WriteBitsIntBe(n int, val uint64) error {
 	if err != nil {
 		return fmt.Errorf("WriteBitsIntBe: %w", err)
 	}
-	k.bitsLe = false
 
 	mask := uint64((1 << n) - 1)
 	val &= mask
 
 	bitsToWrite := k.bitsLeft + n
-
 	bytesToWrite := bitsToWrite / 8
-	k.bitsLeft = bitsToWrite % 8
+	newBitsLeft := bitsToWrite % 8
 
 	if bytesToWrite > 0 {
+		err = k.rewindReservedBits()
+		if err != nil {
+			return fmt.Errorf("WriteBitsIntBe: %w", err)
+		}
 		buf := make([]byte, bytesToWrite)
 
-		mask := uint64((1 << k.bitsLeft) - 1) // `bitsLeft` is in range 0..7
+		mask := uint64((1 << newBitsLeft) - 1) // `newBitsLeft` is in range 0..7
 		newBits := val & mask
-		val = val>>k.bitsLeft | k.bits<<(n-k.bitsLeft)
+		val = val>>newBitsLeft | k.bits<<(n-newBitsLeft)
 		k.bits = newBits
+		k.bitsLeft = newBitsLeft
+		k.bitsLe = false
 
 		for i := bytesToWrite - 1; i >= 0; i-- {
 			buf[i] = byte(val & 0xFF)
 			val >>= 8
-		}
-		err = k.rewindReservedBits()
-		if err != nil {
-			return fmt.Errorf("WriteBitsIntBe: %w", err)
 		}
 		_, err = k.writeNotAligned(buf)
 		if err != nil {
@@ -327,6 +327,8 @@ func (k *Writer) WriteBitsIntBe(n int, val uint64) error {
 		}
 	} else {
 		k.bits = k.bits<<n | val
+		k.bitsLeft = newBitsLeft
+		k.bitsLe = false
 	}
 
 	return nil
@@ -338,28 +340,28 @@ func (k *Writer) WriteBitsIntLe(n int, val uint64) error {
 	if err != nil {
 		return fmt.Errorf("WriteBitsIntLe: %w", err)
 	}
-	k.bitsLe = true
 
 	bitsToWrite := k.bitsLeft + n
-
 	bytesToWrite := bitsToWrite / 8
 	oldBitsLeft := k.bitsLeft
-	k.bitsLeft = bitsToWrite % 8
+	newBitsLeft := bitsToWrite % 8
 
 	if bytesToWrite > 0 {
+		err = k.rewindReservedBits()
+		if err != nil {
+			return fmt.Errorf("WriteBitsIntLe: %w", err)
+		}
 		buf := make([]byte, bytesToWrite)
 
-		newBits := val >> (n - k.bitsLeft)
+		newBits := val >> (n - newBitsLeft)
 		val = val<<oldBitsLeft | k.bits
 		k.bits = newBits
+		k.bitsLeft = newBitsLeft
+		k.bitsLe = true
 
 		for i := range bytesToWrite {
 			buf[i] = byte(val & 0xFF)
 			val >>= 8
-		}
-		err = k.rewindReservedBits()
-		if err != nil {
-			return fmt.Errorf("WriteBitsIntLe: %w", err)
 		}
 		_, err = k.writeNotAligned(buf)
 		if err != nil {
@@ -367,6 +369,8 @@ func (k *Writer) WriteBitsIntLe(n int, val uint64) error {
 		}
 	} else {
 		k.bits |= val << oldBitsLeft
+		k.bitsLeft = newBitsLeft
+		k.bitsLe = true
 	}
 
 	var mask uint64 = (1 << k.bitsLeft) - 1 // `bitsLeft` is in range 0..7
