@@ -2,7 +2,6 @@ package kaitai
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -48,7 +47,7 @@ func (k *Writer) Pos() (int64, error) {
 		}
 		return n, nil
 	default:
-		return 0, errors.New("Pos: stream is not seekable")
+		return 0, fmt.Errorf("Pos: %w", ErrWriterNotSeekable)
 	}
 }
 
@@ -66,7 +65,7 @@ func (k *Writer) Seek(offset int64, whence int) (int64, error) {
 		}
 		return n, nil
 	default:
-		return 0, errors.New("Seek: stream is not seekable")
+		return 0, fmt.Errorf("Seek: %w", ErrWriterNotSeekable)
 	}
 }
 

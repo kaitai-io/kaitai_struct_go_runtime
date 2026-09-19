@@ -3,6 +3,7 @@ package kaitai
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"reflect"
 	"testing"
@@ -50,6 +51,30 @@ func TestWriterPosPendingBits(t *testing.T) {
 	}
 	if buf.Len() != 0 {
 		t.Fatalf("Pos() flushed pending bits: %x", buf.Bytes())
+	}
+}
+
+func TestWriterPosNotSeekable(t *testing.T) {
+	_, err := NewWriter(&bytes.Buffer{}).Pos()
+	if !errors.Is(err, ErrWriterNotSeekable) {
+		t.Fatalf("Pos() error = %v, want errors.Is(_, ErrWriterNotSeekable)", err)
+	}
+	unrelated := fmt.Errorf("unrelated: %w", io.EOF)
+	if errors.Is(unrelated, ErrWriterNotSeekable) {
+		t.Fatal("unrelated error matched ErrWriterNotSeekable")
+	}
+	if got, want := err.Error(), "Pos: stream is not seekable"; got != want {
+		t.Errorf("Pos() error = %q, want %q", got, want)
+	}
+}
+
+func TestWriterSeekNotSeekable(t *testing.T) {
+	_, err := NewWriter(&bytes.Buffer{}).Seek(0, io.SeekStart)
+	if !errors.Is(err, ErrWriterNotSeekable) {
+		t.Fatalf("Seek() error = %v, want errors.Is(_, ErrWriterNotSeekable)", err)
+	}
+	if got, want := err.Error(), "Seek: stream is not seekable"; got != want {
+		t.Errorf("Seek() error = %q, want %q", got, want)
 	}
 }
 
