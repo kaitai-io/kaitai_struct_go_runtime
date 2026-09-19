@@ -243,14 +243,15 @@ func (k *Writer) WriteBytes(b []byte) error {
 }
 
 // WriteBytesLimit writes fixed-size data with padding or terminator.
-// It returns an error if data exceeds size.
+// It returns an error wrapping ErrBufferCapacity if data exceeds size.
 // term: terminator byte to write after data (-1 = no terminator).
 // padRight: padding byte to fill remaining space (-1 = use term, or 0x00 if none)
 func (k *Writer) WriteBytesLimit(data []byte, size int, term int, padRight int) error {
 	if len(data) > size {
-		// Invalid field lengths are caller errors, not sentinel conditions.
-		//nolint:err113
-		return fmt.Errorf("WriteBytesLimit: writing %d bytes, but %d bytes were given", size, len(data))
+		return fmt.Errorf(
+			"WriteBytesLimit: writing %d bytes, but %d bytes were given: %w",
+			size, len(data), ErrBufferCapacity,
+		)
 	}
 	err := k.WriteBytes(data)
 	if err != nil {

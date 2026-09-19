@@ -5,7 +5,8 @@ import (
 	"io"
 )
 
-// ErrBufferCapacity indicates that a write or seek would exceed a fixed buffer's capacity.
+// ErrBufferCapacity indicates that a bounded write or seek would exceed its capacity.
+// This includes fixed buffers and fixed-size fields written with WriteBytesLimit.
 var ErrBufferCapacity = errors.New("fixed buffer capacity exceeded")
 
 // SeekableBuffer is an in-memory buffer that implements io.ReadWriteSeeker.

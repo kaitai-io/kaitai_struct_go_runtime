@@ -121,13 +121,99 @@ func TestWriterSeekNotSeekable(t *testing.T) {
 }
 
 func TestWriteBytesLimitRejectsOverflow(t *testing.T) {
-	var buf bytes.Buffer
-	err := NewWriter(&buf).WriteBytesLimit([]byte{1, 2}, 1, 0, 0)
-	if err == nil {
-		t.Fatal("WriteBytesLimit() accepted more bytes than the field size")
+	variants := []struct {
+		name     string
+		term     int
+		padRight int
+	}{
+		{"plain", -1, -1},
+		{"padded", -1, 0xaa},
+		{"terminated", 0, -1},
+		{"terminated and padded", 0, 0xaa},
 	}
-	if buf.Len() != 0 {
-		t.Fatalf("WriteBytesLimit() wrote oversized data: %x", buf.Bytes())
+	destinations := []struct {
+		name string
+		new  func() (*Writer, *SeekableBuffer)
+	}{
+		{"growable", func() (*Writer, *SeekableBuffer) {
+			buf := NewSeekableBuffer([]byte{0x10, 0x20, 0x30})
+			return NewWriter(buf), buf
+		}},
+		{"fixed", func() (*Writer, *SeekableBuffer) {
+			buf := NewFixedSeekableBuffer(3)
+			copy(buf.data, []byte{0x10, 0x20, 0x30})
+			return NewWriter(buf), buf
+		}},
+	}
+
+	for _, destination := range destinations {
+		for _, variant := range variants {
+			t.Run(destination.name+"/"+variant.name, func(t *testing.T) {
+				w, buf := destination.new()
+				_, err := w.Seek(1, io.SeekStart)
+				require.NoError(t, err)
+				before := bytes.Clone(buf.Bytes())
+
+				err = w.WriteBytesLimit([]byte{1, 2}, 1, variant.term, variant.padRight)
+				require.ErrorIs(t, err, ErrBufferCapacity)
+				require.ErrorContains(t, err, "writing 1 bytes")
+				require.ErrorContains(t, err, "2 bytes were given")
+				require.Equal(t, before, buf.Bytes())
+				checkWriterPos(t, w, 1)
+
+				// A failed length preflight leaves the writer reusable.
+				require.NoError(t, w.WriteBytesLimit([]byte{0x99}, 1, variant.term, variant.padRight))
+				require.Equal(t, []byte{0x10, 0x99, 0x30}, buf.Bytes())
+				checkWriterPos(t, w, 2)
+			})
+		}
+	}
+}
+
+func TestWriteBytesLimitOverflowPreservesPendingBitsForRetry(t *testing.T) {
+	buf := NewFixedSeekableBuffer(2)
+	w := NewWriter(buf)
+	require.NoError(t, w.WriteBitsIntBe(3, 5))
+
+	err := w.WriteBytesLimit([]byte{1, 2}, 1, -1, -1)
+	require.ErrorIs(t, err, ErrBufferCapacity)
+	require.Equal(t, 3, w.bitsLeft)
+	require.Equal(t, uint64(5), w.bits)
+	physical, seekErr := buf.Seek(0, io.SeekCurrent)
+	require.NoError(t, seekErr)
+	require.Zero(t, physical)
+	checkWriterPos(t, w, 1)
+
+	require.NoError(t, w.WriteBytesLimit([]byte{0x12}, 1, -1, -1))
+	require.Equal(t, []byte{0xa0, 0x12}, buf.Bytes())
+	checkWriterPos(t, w, 2)
+}
+
+func TestWriteBytesLimitAcceptsZeroAndExactBounds(t *testing.T) {
+	for _, destination := range []struct {
+		name string
+		new  func(int) *SeekableBuffer
+	}{
+		{"growable", func(size int) *SeekableBuffer { return NewSeekableBuffer(make([]byte, size)) }},
+		{"fixed", NewFixedSeekableBuffer},
+	} {
+		for _, boundary := range []struct {
+			name string
+			data []byte
+			size int
+			want []byte
+		}{
+			{"zero", nil, 0, []byte{}},
+			{"exact", []byte{0x12, 0x34}, 2, []byte{0x12, 0x34}},
+		} {
+			t.Run(destination.name+"/"+boundary.name, func(t *testing.T) {
+				buf := destination.new(boundary.size)
+				w := NewWriter(buf)
+				require.NoError(t, w.WriteBytesLimit(boundary.data, boundary.size, 0, 0xaa))
+				require.Equal(t, boundary.want, buf.Bytes())
+				checkWriterPos(t, w, int64(boundary.size))
+			})
+		}
 	}
 }
 
@@ -537,6 +623,7 @@ func TestWriteBytesLimitErrors(t *testing.T) {
 			if !errors.Is(err, want) {
 				t.Fatalf("error = %v, want %v", err, want)
 			}
+			require.NotErrorIs(t, err, ErrBufferCapacity)
 		})
 	}
 }
