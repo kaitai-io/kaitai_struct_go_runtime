@@ -16,6 +16,11 @@ type Writer struct {
 	bits     uint64
 	bitsLeft int
 	bitsLe   bool
+	// bitsReserved reports that the underlying cursor is already one byte
+	// past bits. This happens when a bounded bit write fails its atomic
+	// capacity preflight: the prior pending byte remains logically pending,
+	// but is materialized so the physical position matches Pos().
+	bitsReserved bool
 
 	children []*ChildWriter
 }
@@ -44,7 +49,7 @@ func (k *Writer) Pos() (int64, error) {
 		if err != nil {
 			return 0, fmt.Errorf("Pos: failed to get pos: %w", err)
 		}
-		if k.bitsLeft > 0 {
+		if k.bitsLeft > 0 && !k.bitsReserved {
 			n++
 		}
 		return n, nil
@@ -286,6 +291,10 @@ func (k *Writer) WriteBytesLimit(data []byte, size int, term int, padRight int) 
 
 // WriteBitsIntBe writes n bits in big-endian bit order.
 func (k *Writer) WriteBitsIntBe(n int, val uint64) error {
+	err := k.ensureBitsCapacity(n)
+	if err != nil {
+		return fmt.Errorf("WriteBitsIntBe: %w", err)
+	}
 	k.bitsLe = false
 
 	mask := uint64((1 << n) - 1)
@@ -308,7 +317,11 @@ func (k *Writer) WriteBitsIntBe(n int, val uint64) error {
 			buf[i] = byte(val & 0xFF)
 			val >>= 8
 		}
-		_, err := k.writeNotAligned(buf)
+		err = k.rewindReservedBits()
+		if err != nil {
+			return fmt.Errorf("WriteBitsIntBe: %w", err)
+		}
+		_, err = k.writeNotAligned(buf)
 		if err != nil {
 			return fmt.Errorf("WriteBitsIntBe: %w", err)
 		}
@@ -321,6 +334,10 @@ func (k *Writer) WriteBitsIntBe(n int, val uint64) error {
 
 // WriteBitsIntLe writes n bits in little-endian bit order.
 func (k *Writer) WriteBitsIntLe(n int, val uint64) error {
+	err := k.ensureBitsCapacity(n)
+	if err != nil {
+		return fmt.Errorf("WriteBitsIntLe: %w", err)
+	}
 	k.bitsLe = true
 
 	bitsToWrite := k.bitsLeft + n
@@ -340,7 +357,11 @@ func (k *Writer) WriteBitsIntLe(n int, val uint64) error {
 			buf[i] = byte(val & 0xFF)
 			val >>= 8
 		}
-		_, err := k.writeNotAligned(buf)
+		err = k.rewindReservedBits()
+		if err != nil {
+			return fmt.Errorf("WriteBitsIntLe: %w", err)
+		}
+		_, err = k.writeNotAligned(buf)
 		if err != nil {
 			return fmt.Errorf("WriteBitsIntLe: %w", err)
 		}
@@ -362,6 +383,10 @@ func (k *Writer) AlignToByte() error {
 			b <<= 8 - k.bitsLeft
 		}
 		k.buf[0] = byte(b)
+		err := k.rewindReservedBits()
+		if err != nil {
+			return fmt.Errorf("AlignToByte: %w", err)
+		}
 		n, err := k.writeNotAligned(k.buf[:1])
 		if n > 0 {
 			k.bitsLeft = 0
@@ -371,6 +396,80 @@ func (k *Writer) AlignToByte() error {
 			return fmt.Errorf("AlignToByte: %w", err)
 		}
 	}
+	return nil
+}
+
+// ensureBitsCapacity makes writes to bounded destinations atomic at bit-field
+// granularity. Pending bits already account for one logical byte, so only the
+// additional bytes needed by this call are checked. On failure, an unreserved
+// pending byte is materialized without consuming it; this keeps the physical
+// cursor at the same logical position reported by Pos while allowing a later
+// retry to rewind and overwrite that byte.
+func (k *Writer) ensureBitsCapacity(n int) error {
+	bounded, ok := k.Writer.(interface {
+		remainingWriteCapacity() (int64, bool)
+	})
+	if !ok {
+		return nil
+	}
+	remaining, fixed := bounded.remainingWriteCapacity()
+	if !fixed {
+		return nil
+	}
+
+	bitsToWrite := k.bitsLeft + n
+	bytesNeeded := 0
+	if bitsToWrite > 0 {
+		bytesNeeded = (bitsToWrite-1)/8 + 1
+	}
+	additional := bytesNeeded
+	if k.bitsLeft > 0 {
+		additional--
+		if !k.bitsReserved {
+			remaining--
+		}
+	}
+	if int64(additional) <= remaining {
+		return nil
+	}
+	if k.bitsLeft > 0 && !k.bitsReserved {
+		err := k.reservePendingBits()
+		if err != nil {
+			return err
+		}
+	}
+	return ErrBufferCapacity
+}
+
+func (k *Writer) reservePendingBits() error {
+	b := k.bits
+	if !k.bitsLe {
+		b <<= 8 - k.bitsLeft
+	}
+	k.buf[0] = byte(b)
+	n, err := k.writeNotAligned(k.buf[:1])
+	if n > 0 {
+		k.bitsReserved = true
+	}
+	if err != nil {
+		return fmt.Errorf("reserve pending bits: %w", err)
+	}
+	return nil
+}
+
+func (k *Writer) rewindReservedBits() error {
+	if !k.bitsReserved {
+		return nil
+	}
+	seeker, ok := k.Writer.(io.Seeker)
+	if !ok {
+		return fmt.Errorf("rewind reserved bits: %w", ErrWriterNotSeekable)
+	}
+	_, err := seeker.Seek(-1, io.SeekCurrent)
+	if err != nil {
+		return fmt.Errorf("rewind reserved bits: %w", err)
+	}
+	k.bitsReserved = false
 	return nil
 }
 

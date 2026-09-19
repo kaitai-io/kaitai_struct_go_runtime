@@ -7,6 +7,8 @@ import (
 	"io"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type shortWriter struct{}
@@ -273,6 +275,103 @@ func TestWriteBitsBoundaryBytes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWriteBitsCapacityPreflightPreservesPendingState(t *testing.T) {
+	for _, order := range []struct {
+		name  string
+		write func(*Writer, int, uint64) error
+		pre   uint64
+		fail  uint64
+		read  func(*Stream, int) (uint64, error)
+	}{
+		{"be", (*Writer).WriteBitsIntBe, 0x52, 0x285fe, (*Stream).ReadBitsIntBe},
+		{"le", (*Writer).WriteBitsIntLe, 0x52, 0x1fe84, (*Stream).ReadBitsIntLe},
+	} {
+		t.Run(order.name, func(t *testing.T) {
+			buf := NewFixedSeekableBuffer(3)
+			w := NewWriter(buf)
+			require.NoError(t, order.write(w, 7, order.pre))
+
+			err := order.write(w, 18, order.fail)
+			require.ErrorIs(t, err, ErrBufferCapacity)
+			physical, seekErr := buf.Seek(0, io.SeekCurrent)
+			require.NoError(t, seekErr)
+			require.Equal(t, int64(1), physical)
+			checkWriterPos(t, w, 1)
+			require.Equal(t, 7, w.bitsLeft)
+			require.Equal(t, order.pre, w.bits)
+
+			// A repeated failure is idempotent, including the physical cursor.
+			err = order.write(w, 18, order.fail)
+			require.ErrorIs(t, err, ErrBufferCapacity)
+			physical, seekErr = buf.Seek(0, io.SeekCurrent)
+			require.NoError(t, seekErr)
+			require.Equal(t, int64(1), physical)
+			require.Equal(t, 7, w.bitsLeft)
+			require.Equal(t, order.pre, w.bits)
+
+			// Simulate a bounded destination gaining one byte, then retry. The
+			// reserved partial byte must be overwritten, not treated as an
+			// alignment boundary.
+			buf.data = append(buf.data, 0)
+			require.NoError(t, order.write(w, 18, order.fail))
+			require.NoError(t, w.AlignToByte())
+			s := NewStream(bytes.NewReader(buf.Bytes()))
+			gotPre, err := order.read(s, 7)
+			require.NoError(t, err)
+			gotFail, err := order.read(s, 18)
+			require.NoError(t, err)
+			require.Equal(t, order.pre, gotPre)
+			require.Equal(t, order.fail, gotFail)
+		})
+	}
+}
+
+func TestWriteBitsCapacityFailureAfterAlignedPrefixIsAtomic(t *testing.T) {
+	for _, order := range []struct {
+		name  string
+		write func(*Writer, int, uint64) error
+	}{
+		{"be", (*Writer).WriteBitsIntBe},
+		{"le", (*Writer).WriteBitsIntLe},
+	} {
+		t.Run(order.name, func(t *testing.T) {
+			buf := NewFixedSeekableBuffer(3)
+			w := NewWriter(buf)
+			require.NoError(t, order.write(w, 8, 1))
+			err := order.write(w, 17, 1)
+			require.ErrorIs(t, err, ErrBufferCapacity)
+			physical, seekErr := buf.Seek(0, io.SeekCurrent)
+			require.NoError(t, seekErr)
+			require.Equal(t, int64(1), physical)
+			require.Zero(t, w.bitsLeft)
+			require.Zero(t, w.bits)
+
+			buf.data = append(buf.data, 0)
+			require.NoError(t, order.write(w, 17, 1))
+			require.NoError(t, w.AlignToByte())
+			physical, seekErr = buf.Seek(0, io.SeekCurrent)
+			require.NoError(t, seekErr)
+			require.Equal(t, int64(4), physical)
+		})
+	}
+}
+
+func TestWriteBitsCapacityFailurePreservesPendingEndian(t *testing.T) {
+	buf := NewFixedSeekableBuffer(1)
+	w := NewWriter(buf)
+	require.NoError(t, w.WriteBitsIntLe(3, 5))
+	require.ErrorIs(t, w.WriteBitsIntBe(8, 0xff), ErrBufferCapacity)
+	if !w.bitsLe || w.bitsLeft != 3 || w.bits != 5 {
+		t.Fatalf("pending state after failed endian change = le:%t bits:%#x/%d", w.bitsLe, w.bits, w.bitsLeft)
+	}
+	if !bytes.Equal(buf.Bytes(), []byte{0x05}) {
+		t.Fatalf("reserved prefix = %x, want 05", buf.Bytes())
+	}
+	require.NoError(t, w.AlignToByte())
+	require.Zero(t, w.bitsLeft)
+	checkWriterPos(t, w, 1)
 }
 
 func TestWriterSeekPendingBits(t *testing.T) {

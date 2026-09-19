@@ -93,3 +93,10 @@ func (sb *SeekableBuffer) Bytes() []byte {
 func (sb *SeekableBuffer) Len() int {
 	return len(sb.data)
 }
+
+func (sb *SeekableBuffer) remainingWriteCapacity() (int64, bool) {
+	if !sb.fixed {
+		return 0, false
+	}
+	return int64(len(sb.data)) - sb.pos, true
+}

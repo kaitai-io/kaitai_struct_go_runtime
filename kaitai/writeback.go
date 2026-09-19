@@ -186,9 +186,11 @@ func (c *ChildWriter) writeBack(noAlign bool) error {
 		return fmt.Errorf("WriteBack: %w", NewConsistencyError("write-back size", c.outerSize, len(data)))
 	}
 	if noAlign {
-		bits, left, le := c.parent.bits, c.parent.bitsLeft, c.parent.bitsLe
-		c.parent.bits, c.parent.bitsLeft, c.parent.bitsLe = 0, 0, false
-		defer func() { c.parent.bits, c.parent.bitsLeft, c.parent.bitsLe = bits, left, le }()
+		bits, left, le, reserved := c.parent.bits, c.parent.bitsLeft, c.parent.bitsLe, c.parent.bitsReserved
+		c.parent.bits, c.parent.bitsLeft, c.parent.bitsLe, c.parent.bitsReserved = 0, 0, false, false
+		defer func() {
+			c.parent.bits, c.parent.bitsLeft, c.parent.bitsLe, c.parent.bitsReserved = bits, left, le, reserved
+		}()
 	}
 	if c.overlay {
 		return c.writeOverlayToParent(data)

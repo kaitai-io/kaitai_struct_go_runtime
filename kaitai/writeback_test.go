@@ -297,14 +297,12 @@ func TestWriteBackAlignmentFailurePreservesPendingBits(t *testing.T) {
 	requireWriterPos(t, parent, 2)
 }
 
-func TestWriteBackChildAlignmentOverflowRemainsAnError(t *testing.T) {
+func TestChildWriterBitCapacityFailureIsImmediate(t *testing.T) {
 	buf := NewSeekableBuffer(nil)
 	child, err := NewWriter(buf).NewChild(1, 1, nil)
 	require.NoError(t, err)
 	require.NoError(t, child.WriteU1(0x12))
-	require.NoError(t, child.WriteBitsIntBe(3, 5))
-	require.ErrorIs(t, child.WriteBack(), ErrBufferCapacity)
-	require.ErrorIs(t, child.WriteBack(), ErrBufferCapacity)
+	require.ErrorIs(t, child.WriteBitsIntBe(3, 5), ErrBufferCapacity)
 	require.Empty(t, buf.Bytes())
 }
 

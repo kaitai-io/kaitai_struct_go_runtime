@@ -86,6 +86,37 @@ func TestWriteBackNoAlignFailureAndRetryPreservesPhysicalCursorAndBits(t *testin
 	}
 }
 
+func TestWriteBackNoAlignPreservesReservedPendingBits(t *testing.T) {
+	buf := NewFixedSeekableBuffer(4)
+	parent := NewWriter(buf)
+	child, err := parent.NewChild(1, 1, nil)
+	require.NoError(t, err)
+	require.NoError(t, child.WriteU1(0x42))
+	require.NoError(t, parent.WriteBitsIntBe(7, 0x52))
+	require.ErrorIs(t, parent.WriteBitsIntBe(18, 0x285fe), ErrBufferCapacity)
+	require.True(t, parent.bitsReserved)
+
+	require.NoError(t, child.WriteBackNoAlign())
+	physical, err := buf.Seek(0, io.SeekCurrent)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), physical)
+	require.Equal(t, []byte{0x42, 0xa4, 0, 0}, buf.Bytes())
+	require.Equal(t, 7, parent.bitsLeft)
+	require.Equal(t, uint64(0x52), parent.bits)
+	require.True(t, parent.bitsReserved)
+
+	buf.data = append(buf.data, 0)
+	require.NoError(t, parent.WriteBitsIntBe(18, 0x285fe))
+	require.NoError(t, parent.AlignToByte())
+	stream := NewStream(bytes.NewReader(buf.Bytes()[1:]))
+	gotPre, err := stream.ReadBitsIntBe(7)
+	require.NoError(t, err)
+	gotFail, err := stream.ReadBitsIntBe(18)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0x52), gotPre)
+	require.Equal(t, uint64(0x285fe), gotFail)
+}
+
 func TestWriteContextOwnsOnlyCurrentReservationsAndPreservesBits(t *testing.T) {
 	buf := NewSeekableBuffer(nil)
 	w := NewWriter(buf)
