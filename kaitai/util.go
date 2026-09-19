@@ -11,6 +11,15 @@ import (
 	"golang.org/x/text/transform"
 )
 
+// ByteEncoderFunc adapts a function to ByteEncoder. The function follows the
+// same input ownership and retry contract as ByteEncoder.
+type ByteEncoderFunc func([]byte) ([]byte, error)
+
+// Encode applies f to data.
+func (f ByteEncoderFunc) Encode(data []byte) ([]byte, error) {
+	return f(data)
+}
+
 // ProcessXOR returns data xored with the key.
 func ProcessXOR(data []byte, key []byte) []byte {
 	out := make([]byte, len(data))
@@ -46,6 +55,10 @@ func ProcessZlib(in []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ProcessZlib: error initializing zlib reader: %w", err)
 	}
+	defer func() {
+		// Close releases the decompressor; any read/checksum error is handled below.
+		_ = r.Close()
+	}()
 
 	res, err := io.ReadAll(r)
 	if err != nil {
@@ -54,12 +67,13 @@ func ProcessZlib(in []byte) ([]byte, error) {
 	return res, nil
 }
 
-// UnprocessZlib compresses data using zlib.
+// UnprocessZlib compresses data using the RFC 1950 zlib framing.
 func UnprocessZlib(in []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	w := zlib.NewWriter(&buf)
 	_, err := w.Write(in)
 	if err != nil {
+		_ = w.Close()
 		return nil, fmt.Errorf("UnprocessZlib: error writing zlib data: %w", err)
 	}
 	err = w.Close()

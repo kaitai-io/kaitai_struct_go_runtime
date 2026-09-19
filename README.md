@@ -15,6 +15,26 @@ Further reading:
 * [About Kaitai Struct](https://kaitai.io/)
 * [About API implemented in this library](https://doc.kaitai.io/stream_api.html)
 
+## Experimental serialization
+
+The runtime includes experimental serialization support through `Writer`,
+seekable buffers, and child writers. Go compiler integration and its conformance
+tests are still in development; this does not yet imply released compiler support.
+
+Child writers accept a `ByteEncoder` with `Encode([]byte) ([]byte, error)` to
+transform logical bytes into their on-disk representation. Custom processor
+objects can implement this method directly. `ByteEncoderFunc` adapts functions
+and closures, for example `kaitai.ByteEncoderFunc(kaitai.UnprocessZlib)`. Encoders
+may modify the input copy supplied by a child writer and should be deterministic
+because failed write-back can be retried. Their output must match the reserved
+outer size, including any schema-specific padding or terminators.
+
+Built-in inverse processing uses `ProcessXOR` again for XOR,
+`ProcessRotateRight` for a left rotation (and vice versa), and `UnprocessZlib`
+for RFC 1950 zlib compression. These built-in functions leave the source bytes
+unchanged and return independent output. Encoder errors propagate through
+write-back with wrapping that supports Go's `errors.Is` and `errors.As`.
+
 ## Licensing
 
 Copyright 2017-2025 Kaitai Project: MIT license
