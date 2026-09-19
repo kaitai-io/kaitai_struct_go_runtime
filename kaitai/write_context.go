@@ -5,6 +5,10 @@ import "errors"
 // ErrWriteContextClosed reports a missing, completed, or closed output session.
 var ErrWriteContextClosed = errors.New("write context is missing or complete")
 
+// ErrWriteContextSuspended reports bindings temporarily owned by a nested Run.
+// The operation can be retried after that Run returns.
+var ErrWriteContextSuspended = errors.New("write context is suspended by a nested operation")
+
 // WriteContext coordinates one generated output operation. It records only
 // objects and child reservations participating in that operation, and completes
 // pending instances in nested registration order before propagating children.
@@ -19,6 +23,8 @@ type WriteContext struct {
 	finished  bool
 	closed    bool
 	scoped    bool
+	suspended int
+	previous  map[*WriteContext]int
 }
 
 type writeFrame struct {
@@ -37,14 +43,18 @@ func NewWriteContext() *WriteContext {
 // operations if writing succeeds, and always closes the context before returning.
 // The context must be new. Generated independent writers use this bounded scope
 // to permit synchronous reentry of a graph already bound to a suspended session.
-func (c *WriteContext) Run(write func() error) error {
-	if c == nil || c.closed || c.finished || c.finishing || c.scoped ||
-		len(c.objects) != 0 || len(c.root.children) != 0 || len(c.children) != 0 {
+func (c *WriteContext) Run(write func() error) (err error) {
+	if !c.isNew() {
 		return ErrWriteContextClosed
 	}
 	c.scoped = true
-	defer c.Close()
-	err := write()
+	defer func() {
+		closeErr := c.Close()
+		if closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}()
+	err = write()
 	if err != nil {
 		return err
 	}
@@ -64,11 +74,28 @@ func (c *WriteContext) IsScoped() bool {
 // outstanding occurrence of the same object is rejected rather than selecting
 // an ambiguous stream. restore is run on Close even if writing fails.
 func (c *WriteContext) Enter(object any, restore func()) (func(), error) {
+	return c.EnterFrom(object, nil, restore)
+}
+
+// EnterFrom binds an object, suspending its previous context until all bindings
+// in this context have been restored. Only Run may temporarily borrow a binding.
+// Multiple objects can suspend the same context; nested Runs release only their
+// own suspensions. A closed previous context is never restored.
+func (c *WriteContext) EnterFrom(object any, previous *WriteContext, restore func()) (func(), error) {
 	if c == nil || c.closed || c.finished {
 		return nil, ErrWriteContextClosed
 	}
+	if c.suspended != 0 {
+		return nil, ErrWriteContextSuspended
+	}
 	if c.objects[object] {
 		return nil, NewConsistencyError("output binding", "one occurrence per object", "repeated object")
+	}
+	if previous != nil {
+		err := c.suspend(previous)
+		if err != nil {
+			return nil, err
+		}
 	}
 	c.objects[object] = true
 	c.restore = append(c.restore, restore)
@@ -99,6 +126,9 @@ func (c *WriteContext) Finish() error {
 	if c == nil || c.closed || c.finished || c.finishing {
 		return ErrWriteContextClosed
 	}
+	if c.suspended != 0 {
+		return ErrWriteContextSuspended
+	}
 	c.finishing = true
 	defer func() { c.finishing = false; c.finished = true }()
 	err := c.finishFrame(&c.root)
@@ -120,20 +150,49 @@ func (c *WriteContext) Finish() error {
 // output. It detaches this operation's child registrations on success or failure
 // so a subsequent independent operation cannot flush abandoned reservations.
 // Explicit child handles remain usable for direct runtime retry.
-func (c *WriteContext) Close() {
+// A suspended context cannot close: doing so would invalidate nested restoration.
+func (c *WriteContext) Close() error {
 	if c == nil || c.closed {
-		return
+		return nil
+	}
+	if c.suspended != 0 {
+		return ErrWriteContextSuspended
 	}
 	c.closed = true
 	for i := len(c.restore) - 1; i >= 0; i-- {
 		c.restore[i]()
 	}
+	for previous, count := range c.previous {
+		previous.suspended -= count
+	}
+	c.previous = nil
 	c.detachChildren()
 	c.root = writeFrame{}
 	c.current = nil
 	c.objects = nil
 	c.restore = nil
 	c.children = nil
+	return nil
+}
+
+func (c *WriteContext) isNew() bool {
+	return c != nil && !c.closed && !c.finished && !c.finishing && !c.scoped &&
+		len(c.objects) == 0 && len(c.root.children) == 0 && len(c.children) == 0
+}
+
+func (c *WriteContext) suspend(previous *WriteContext) error {
+	if previous.closed {
+		return ErrWriteContextClosed
+	}
+	if !c.IsScoped() || previous == c {
+		return NewConsistencyError("output binding", "independent scoped operation", "outstanding context")
+	}
+	if c.previous == nil {
+		c.previous = make(map[*WriteContext]int)
+	}
+	c.previous[previous]++
+	previous.suspended++
+	return nil
 }
 
 func (c *WriteContext) detachChildren() {

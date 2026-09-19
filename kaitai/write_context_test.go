@@ -194,3 +194,89 @@ func TestWriteContextRunRequiresANewContext(t *testing.T) {
 	require.ErrorIs(t, context.Run(func() error { return nil }), ErrWriteContextClosed)
 	require.False(t, context.IsScoped())
 }
+
+func TestWriteContextSuspensionRejectsCompletionAndUnwindsNestedOwners(t *testing.T) {
+	for _, outcome := range []string{"success", "error", "panic"} {
+		t.Run(outcome, func(t *testing.T) {
+			outer, middle, inner := NewWriteContext(), NewWriteContext(), NewWriteContext()
+			completed, restored := 0, 0
+			outer.Defer(func() error { completed++; return nil })
+			assertSuspended := func(c *WriteContext) {
+				require.ErrorIs(t, c.Finish(), ErrWriteContextSuspended)
+				require.ErrorIs(t, c.Close(), ErrWriteContextSuspended)
+				_, err := c.Enter(new(int), func() {})
+				require.ErrorIs(t, err, ErrWriteContextSuspended)
+			}
+			run := func() error {
+				return middle.Run(func() error {
+					for range 2 {
+						leave, err := middle.EnterFrom(new(int), outer, func() { restored++ })
+						require.NoError(t, err)
+						leave()
+					}
+					return inner.Run(func() error {
+						for _, previous := range []*WriteContext{outer, middle} {
+							leave, err := inner.EnterFrom(new(int), previous, func() { restored++ })
+							require.NoError(t, err)
+							leave()
+						}
+						assertSuspended(outer)
+						assertSuspended(middle)
+						require.Zero(t, completed)
+						require.Zero(t, restored)
+						switch outcome {
+						case "error":
+							return io.ErrClosedPipe
+						case "panic":
+							panic("write failed")
+						}
+						return nil
+					})
+				})
+			}
+			switch outcome {
+			case "panic":
+				require.PanicsWithValue(t, "write failed", func() { _ = run() })
+			case "error":
+				require.ErrorIs(t, run(), io.ErrClosedPipe)
+			default:
+				require.NoError(t, run())
+			}
+			require.Equal(t, 4, restored)
+			require.NoError(t, outer.Finish())
+			require.Equal(t, 1, completed)
+			require.NoError(t, outer.Close())
+		})
+	}
+}
+
+func TestWriteContextRejectsClosedPreviousBindingWithoutAcquiringOwnership(t *testing.T) {
+	previous, context := NewWriteContext(), NewWriteContext()
+	require.NoError(t, previous.Close())
+	restored := false
+	err := context.Run(func() error {
+		_, err := context.EnterFrom(new(int), previous, func() { restored = true })
+		return err
+	})
+	require.ErrorIs(t, err, ErrWriteContextClosed)
+	require.False(t, restored)
+	require.Zero(t, previous.suspended)
+}
+
+func TestWriteContextSuspendsFinishedBindingsUntilRestorationCompletes(t *testing.T) {
+	previous, context := NewWriteContext(), NewWriteContext()
+	require.NoError(t, previous.Finish())
+	err := context.Run(func() error {
+		leave, err := context.EnterFrom(new(int), previous, func() {
+			require.ErrorIs(t, previous.Close(), ErrWriteContextSuspended)
+		})
+		if err != nil {
+			return err
+		}
+		leave()
+		require.ErrorIs(t, previous.Close(), ErrWriteContextSuspended)
+		return nil
+	})
+	require.NoError(t, err)
+	require.NoError(t, previous.Close())
+}
