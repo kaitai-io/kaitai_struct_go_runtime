@@ -473,6 +473,44 @@ func TestWriteBitsCapacityFailurePreservesPendingEndian(t *testing.T) {
 	checkWriterPos(t, w, 1)
 }
 
+func TestWriteBitsInvalidWidthPreservesReservedStateForRetry(t *testing.T) {
+	for _, order := range []struct {
+		name  string
+		write func(*Writer, int, uint64) error
+		want  byte
+	}{
+		{"be", (*Writer).WriteBitsIntBe, 0xb3},
+		{"le", (*Writer).WriteBitsIntLe, 0x9d},
+	} {
+		for _, width := range []int{-1, 65} {
+			t.Run(fmt.Sprintf("%s/%d", order.name, width), func(t *testing.T) {
+				buf := NewFixedSeekableBuffer(1)
+				w := NewWriter(buf)
+				require.NoError(t, order.write(w, 3, 5))
+				require.ErrorIs(t, order.write(w, 8, 0xff), ErrBufferCapacity)
+				require.True(t, w.bitsReserved)
+				before := bytes.Clone(buf.Bytes())
+				physical, err := buf.Seek(0, io.SeekCurrent)
+				require.NoError(t, err)
+
+				err = order.write(w, width, 1)
+				require.ErrorIs(t, err, ErrInvalidSizeRequested)
+				require.Equal(t, before, buf.Bytes())
+				require.Equal(t, physical, buf.pos)
+				require.Equal(t, uint64(5), w.bits)
+				require.Equal(t, 3, w.bitsLeft)
+				require.Equal(t, order.name == "le", w.bitsLe)
+				require.True(t, w.bitsReserved)
+
+				require.NoError(t, order.write(w, 5, 0x13))
+				require.NoError(t, w.AlignToByte())
+				require.Equal(t, []byte{order.want}, buf.Bytes())
+				checkWriterPos(t, w, 1)
+			})
+		}
+	}
+}
+
 func TestWriteBitsReservedRetrySeekFailureIsAtomic(t *testing.T) {
 	for _, order := range []struct {
 		name   string
