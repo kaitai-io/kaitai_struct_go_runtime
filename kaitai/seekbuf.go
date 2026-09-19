@@ -79,21 +79,24 @@ func (sb *SeekableBuffer) Write(p []byte) (n int, err error) {
 	return n, nil
 }
 
-func growSeekableBuffer(data []byte, end int) (grown []byte, ok bool) {
-	defer func() {
-		if recover() != nil {
-			grown = nil
-			ok = false
+func growSeekableBuffer(data []byte, end int) ([]byte, bool) {
+	var grown []byte
+	ok := true
+	func() {
+		defer func() {
+			if recover() != nil {
+				ok = false
+			}
+		}()
+		newCap := end
+		maxInt := int(^uint(0) >> 1)
+		if end <= maxInt/2 {
+			newCap = end * 2
 		}
+		grown = make([]byte, end, newCap)
+		copy(grown, data)
 	}()
-	newCap := end
-	maxInt := int(^uint(0) >> 1)
-	if end <= maxInt/2 {
-		newCap = end * 2
-	}
-	grown = make([]byte, end, newCap)
-	copy(grown, data)
-	return grown, true
+	return grown, ok
 }
 
 func (sb *SeekableBuffer) Seek(offset int64, whence int) (int64, error) {
