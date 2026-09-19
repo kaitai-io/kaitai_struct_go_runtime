@@ -15,6 +15,33 @@ func (shortWriter) Write(p []byte) (int, error) {
 	return len(p) / 2, nil
 }
 
+type writtenWithErrorBuffer struct{ bytes.Buffer }
+
+func (b *writtenWithErrorBuffer) Write(p []byte) (int, error) {
+	n, _ := b.Buffer.Write(p)
+	return n, io.ErrClosedPipe
+}
+
+func TestWriterAlignmentDoesNotRetryAnAlreadyWrittenByte(t *testing.T) {
+	var buf writtenWithErrorBuffer
+	w := NewWriter(&buf)
+	err := w.WriteBitsIntBe(3, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = w.AlignToByte()
+	if !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatalf("AlignToByte() = %v", err)
+	}
+	err = w.AlignToByte()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(buf.Bytes(), []byte{0xa0}) {
+		t.Fatalf("bytes = %x", buf.Bytes())
+	}
+}
+
 func TestWriterShortWrite(t *testing.T) {
 	err := NewWriter(shortWriter{}).WriteU2be(0x1234)
 	if !errors.Is(err, io.ErrShortWrite) {

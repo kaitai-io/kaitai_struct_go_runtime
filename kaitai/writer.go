@@ -16,6 +16,8 @@ type Writer struct {
 	bits     uint64
 	bitsLeft int
 	bitsLe   bool
+
+	children []*ChildWriter
 }
 
 // NewWriter creates and initializes a new Writer using w.
@@ -359,10 +361,12 @@ func (k *Writer) AlignToByte() error {
 		if !k.bitsLe {
 			b <<= 8 - k.bitsLeft
 		}
-		k.bitsLeft = 0
-		k.bits = 0
 		k.buf[0] = byte(b)
-		_, err := k.writeNotAligned(k.buf[:1])
+		n, err := k.writeNotAligned(k.buf[:1])
+		if n > 0 {
+			k.bitsLeft = 0
+			k.bits = 0
+		}
 		if err != nil {
 			return fmt.Errorf("AlignToByte: %w", err)
 		}
