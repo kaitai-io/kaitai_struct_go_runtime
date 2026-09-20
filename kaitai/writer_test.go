@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"reflect"
 	"testing"
 
@@ -508,6 +509,59 @@ func TestWriteBitsInvalidWidthPreservesReservedStateForRetry(t *testing.T) {
 				checkWriterPos(t, w, 1)
 			})
 		}
+	}
+}
+
+func TestWriteBitsZeroWidthPreservesPendingStateAcrossEndianCalls(t *testing.T) {
+	for _, direction := range []struct {
+		name         string
+		writePending func(*Writer, int, uint64) error
+		writeZero    func(*Writer, int, uint64) error
+		bitsLe       bool
+		aligned      byte
+		completed    byte
+	}{
+		{"be-to-le", (*Writer).WriteBitsIntBe, (*Writer).WriteBitsIntLe, false, 0xa0, 0xb3},
+		{"le-to-be", (*Writer).WriteBitsIntLe, (*Writer).WriteBitsIntBe, true, 0x05, 0x9d},
+	} {
+		t.Run(direction.name+"/unreserved", func(t *testing.T) {
+			buf := NewSeekableBuffer(nil)
+			w := NewWriter(buf)
+			require.NoError(t, direction.writePending(w, 3, 5))
+
+			require.NoError(t, direction.writeZero(w, 0, math.MaxUint64))
+			require.Empty(t, buf.Bytes())
+			require.Zero(t, buf.pos)
+			require.Equal(t, uint64(5), w.bits)
+			require.Equal(t, 3, w.bitsLeft)
+			require.Equal(t, direction.bitsLe, w.bitsLe)
+			require.False(t, w.bitsReserved)
+
+			require.NoError(t, w.AlignToByte())
+			require.Equal(t, []byte{direction.aligned}, buf.Bytes())
+		})
+
+		t.Run(direction.name+"/reserved-retry", func(t *testing.T) {
+			buf := NewFixedSeekableBuffer(1)
+			w := NewWriter(buf)
+			require.NoError(t, direction.writePending(w, 3, 5))
+			require.ErrorIs(t, direction.writePending(w, 8, 0xff), ErrBufferCapacity)
+			before := bytes.Clone(buf.Bytes())
+			physical := buf.pos
+
+			require.NoError(t, direction.writeZero(w, 0, math.MaxUint64))
+			require.Equal(t, before, buf.Bytes())
+			require.Equal(t, physical, buf.pos)
+			require.Equal(t, uint64(5), w.bits)
+			require.Equal(t, 3, w.bitsLeft)
+			require.Equal(t, direction.bitsLe, w.bitsLe)
+			require.True(t, w.bitsReserved)
+
+			require.NoError(t, direction.writePending(w, 5, 0x13))
+			require.NoError(t, w.AlignToByte())
+			require.Equal(t, []byte{direction.completed}, buf.Bytes())
+			checkWriterPos(t, w, 1)
+		})
 	}
 }
 

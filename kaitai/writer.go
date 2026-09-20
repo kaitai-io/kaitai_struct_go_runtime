@@ -292,10 +292,13 @@ func (k *Writer) WriteBytesLimit(data []byte, size int, term int, padRight int) 
 
 // WriteBitsIntBe writes n bits in big-endian bit order. n must be in the
 // inclusive range 0..64; otherwise it returns ErrInvalidSizeRequested without
-// changing writer state.
+// changing writer state. A zero-width write is a no-op.
 func (k *Writer) WriteBitsIntBe(n int, val uint64) error {
 	if n < 0 || n > 64 {
 		return fmt.Errorf("WriteBitsIntBe(%d): %w", n, ErrInvalidSizeRequested)
+	}
+	if n == 0 {
+		return nil
 	}
 	err := k.ensureBitsCapacity(n)
 	if err != nil {
@@ -342,10 +345,13 @@ func (k *Writer) WriteBitsIntBe(n int, val uint64) error {
 
 // WriteBitsIntLe writes n bits in little-endian bit order. n must be in the
 // inclusive range 0..64; otherwise it returns ErrInvalidSizeRequested without
-// changing writer state.
+// changing writer state. A zero-width write is a no-op.
 func (k *Writer) WriteBitsIntLe(n int, val uint64) error {
 	if n < 0 || n > 64 {
 		return fmt.Errorf("WriteBitsIntLe(%d): %w", n, ErrInvalidSizeRequested)
+	}
+	if n == 0 {
+		return nil
 	}
 	err := k.ensureBitsCapacity(n)
 	if err != nil {
