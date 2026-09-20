@@ -13,6 +13,11 @@ import (
 // represented or allocated.
 var ErrBufferCapacity = errors.New("fixed buffer capacity exceeded")
 
+var (
+	errSeekInvalidWhence    = errors.New("SeekableBuffer.Seek: invalid whence")
+	errSeekNegativePosition = errors.New("SeekableBuffer.Seek: negative position")
+)
+
 // SeekableBuffer is an in-memory buffer that implements io.ReadWriteSeeker.
 // A rejected write preserves both its contents and current position.
 type SeekableBuffer struct {
@@ -39,16 +44,16 @@ func NewFixedSeekableBuffer(size int) *SeekableBuffer {
 	return &SeekableBuffer{data: make([]byte, size), fixed: true}
 }
 
-func (sb *SeekableBuffer) Read(p []byte) (n int, err error) {
+func (sb *SeekableBuffer) Read(p []byte) (int, error) {
 	if sb.pos >= int64(len(sb.data)) {
 		return 0, io.EOF
 	}
-	n = copy(p, sb.data[sb.pos:])
+	n := copy(p, sb.data[sb.pos:])
 	sb.pos += int64(n)
 	return n, nil
 }
 
-func (sb *SeekableBuffer) Write(p []byte) (n int, err error) {
+func (sb *SeekableBuffer) Write(p []byte) (int, error) {
 	writeLen := int64(len(p))
 	if sb.pos > math.MaxInt64-writeLen {
 		return 0, fmt.Errorf("SeekableBuffer.Write: requested range overflows: %w", ErrBufferCapacity)
@@ -74,7 +79,7 @@ func (sb *SeekableBuffer) Write(p []byte) (n int, err error) {
 			sb.data = sb.data[:end]
 		}
 	}
-	n = copy(sb.data[sb.pos:], p)
+	n := copy(sb.data[sb.pos:], p)
 	sb.pos += int64(n)
 	return n, nil
 }
@@ -112,14 +117,14 @@ func (sb *SeekableBuffer) Seek(offset int64, whence int) (int64, error) {
 	case io.SeekEnd:
 		base = int64(len(sb.data))
 	default:
-		return 0, errors.New("SeekableBuffer.Seek: invalid whence")
+		return 0, errSeekInvalidWhence
 	}
 	if sb.fixed && offset > int64(len(sb.data))-base {
 		return 0, ErrBufferCapacity
 	}
 	newPos := base + offset
 	if newPos < 0 {
-		return 0, errors.New("SeekableBuffer.Seek: negative position")
+		return 0, errSeekNegativePosition
 	}
 	sb.pos = newPos
 	return newPos, nil

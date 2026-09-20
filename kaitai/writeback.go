@@ -162,16 +162,11 @@ func (c *ChildWriter) writeBack(noAlign bool) error {
 	if c.flushed {
 		return fmt.Errorf("WriteBack: %w", ErrChildAlreadyWrittenBack)
 	}
-	for _, child := range c.children {
-		if !child.flushed {
-			err := child.writeBack(noAlign)
-			if err != nil {
-				return fmt.Errorf("WriteBack: descendants: %w", err)
-			}
-		}
+	err := c.writeBackChildren(noAlign)
+	if err != nil {
+		return err
 	}
-	c.children = nil
-	err := c.AlignToByte()
+	err = c.AlignToByte()
 	if err != nil {
 		return fmt.Errorf("WriteBack: align child: %w", err)
 	}
@@ -196,6 +191,19 @@ func (c *ChildWriter) writeBack(noAlign bool) error {
 		return c.writeOverlayToParent(data)
 	}
 	return c.writeToParent(data)
+}
+
+func (c *ChildWriter) writeBackChildren(noAlign bool) error {
+	for _, child := range c.children {
+		if !child.flushed {
+			err := child.writeBack(noAlign)
+			if err != nil {
+				return fmt.Errorf("WriteBack: descendants: %w", err)
+			}
+		}
+	}
+	c.children = nil
+	return nil
 }
 
 func (c *ChildWriter) writeToParent(data []byte) (err error) {

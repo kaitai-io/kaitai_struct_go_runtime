@@ -1286,206 +1286,218 @@ func TestWriter_WriteBytesLimit(t *testing.T) {
 }
 
 func TestWriter_WriteBitsIntBe(t *testing.T) {
-	t.Run("two nibbles", func(t *testing.T) {
-		buf := &bytes.Buffer{}
-		w := NewWriter(buf)
-		err := w.WriteBitsIntBe(4, 0xA)
-		if err != nil {
-			t.Fatalf("err = %v", err)
-		}
-		err = w.WriteBitsIntBe(4, 0x5)
-		if err != nil {
-			t.Fatalf("err = %v", err)
-		}
-		if !bytes.Equal(buf.Bytes(), []byte{0xA5}) {
-			t.Errorf("got %v, want [A5]", buf.Bytes())
-		}
-	})
-
-	t.Run("twelve bits then align", func(t *testing.T) {
-		buf := &bytes.Buffer{}
-		w := NewWriter(buf)
-		err := w.WriteBitsIntBe(12, 0xABC)
-		if err != nil {
-			t.Fatalf("err = %v", err)
-		}
-		err = w.AlignToByte()
-		if err != nil {
-			t.Fatalf("align err = %v", err)
-		}
-		if !bytes.Equal(buf.Bytes(), []byte{0xAB, 0xC0}) {
-			t.Errorf("got %v, want [AB C0]", buf.Bytes())
-		}
-	})
-
-	t.Run("mask oversized value", func(t *testing.T) {
-		buf := &bytes.Buffer{}
-		w := NewWriter(buf)
-		// Only the low 4 bits should make it out (0xF, then 0x0 from 0x10's low nibble).
-		err := w.WriteBitsIntBe(4, 0xFF)
-		if err != nil {
-			t.Fatalf("err = %v", err)
-		}
-		err = w.WriteBitsIntBe(4, 0x10)
-		if err != nil {
-			t.Fatalf("err = %v", err)
-		}
-		if !bytes.Equal(buf.Bytes(), []byte{0xF0}) {
-			t.Errorf("got %v, want [F0]", buf.Bytes())
-		}
-	})
-
-	t.Run("round trip via Stream", func(t *testing.T) {
-		buf := &bytes.Buffer{}
-		w := NewWriter(buf)
-		// 5 bits then 5 bits crossing a byte boundary.
-		err := w.WriteBitsIntBe(5, 0x15)
-		if err != nil {
-			t.Fatalf("err = %v", err)
-		}
-		err = w.WriteBitsIntBe(5, 0x0A)
-		if err != nil {
-			t.Fatalf("err = %v", err)
-		}
-		err = w.AlignToByte()
-		if err != nil {
-			t.Fatalf("align err = %v", err)
-		}
-		s := NewStream(bytes.NewReader(buf.Bytes()))
-		v1, err := s.ReadBitsIntBe(5)
-		if err != nil {
-			t.Fatalf("read err: %v", err)
-		}
-		v2, err := s.ReadBitsIntBe(5)
-		if err != nil {
-			t.Fatalf("read err: %v", err)
-		}
-		if v1 != 0x15 || v2 != 0x0A {
-			t.Errorf("round-trip: got (%#x, %#x), want (0x15, 0x0A)", v1, v2)
-		}
-	})
-
-	t.Run("full 64 bits from aligned state", func(t *testing.T) {
-		buf := &bytes.Buffer{}
-		w := NewWriter(buf)
-		val := uint64(0xDEADBEEF8BADF00D)
-		err := w.WriteBitsIntBe(64, val)
-		if err != nil {
-			t.Fatalf("err = %v", err)
-		}
-		want := []byte{0xDE, 0xAD, 0xBE, 0xEF, 0x8B, 0xAD, 0xF0, 0x0D}
-		if !bytes.Equal(buf.Bytes(), want) {
-			t.Errorf("got %v, want %v", buf.Bytes(), want)
-		}
-	})
-
-	t.Run("64 bits after partial byte", func(t *testing.T) {
-		buf := &bytes.Buffer{}
-		w := NewWriter(buf)
-		err := w.WriteBitsIntBe(4, 0xA)
-		if err != nil {
-			t.Fatalf("err = %v", err)
-		}
-		err = w.WriteBitsIntBe(64, 0xDEADBEEF8BADF00D)
-		if err != nil {
-			t.Fatalf("err = %v", err)
-		}
-		err = w.AlignToByte()
-		if err != nil {
-			t.Fatalf("align err = %v", err)
-		}
-		want := []byte{0xAD, 0xEA, 0xDB, 0xEE, 0xF8, 0xBA, 0xDF, 0x00, 0xD0}
-		if !bytes.Equal(buf.Bytes(), want) {
-			t.Errorf("got %v, want %v", buf.Bytes(), want)
-		}
-	})
+	t.Run("two nibbles", testWriterWriteBitsIntBeTwoNibbles)
+	t.Run("twelve bits then align", testWriterWriteBitsIntBeTwelveBits)
+	t.Run("mask oversized value", testWriterWriteBitsIntBeMask)
+	t.Run("round trip via Stream", testWriterWriteBitsIntBeRoundTrip)
+	t.Run("full 64 bits from aligned state", testWriterWriteBitsIntBeFullWidth)
+	t.Run("64 bits after partial byte", testWriterWriteBitsIntBeFullWidthAfterPartial)
 }
 
 func TestWriter_WriteBitsIntLe(t *testing.T) {
-	t.Run("two nibbles", func(t *testing.T) {
-		buf := &bytes.Buffer{}
-		w := NewWriter(buf)
-		err := w.WriteBitsIntLe(4, 0xA)
-		if err != nil {
-			t.Fatalf("err = %v", err)
-		}
-		err = w.WriteBitsIntLe(4, 0x5)
-		if err != nil {
-			t.Fatalf("err = %v", err)
-		}
-		if !bytes.Equal(buf.Bytes(), []byte{0x5A}) {
-			t.Errorf("got %v, want [5A]", buf.Bytes())
-		}
-	})
+	t.Run("two nibbles", testWriterWriteBitsIntLeTwoNibbles)
+	t.Run("twelve bits then align", testWriterWriteBitsIntLeTwelveBits)
+	t.Run("round trip via Stream", testWriterWriteBitsIntLeRoundTrip)
+	t.Run("64 bits after partial byte", testWriterWriteBitsIntLeFullWidthAfterPartial)
+}
 
-	t.Run("twelve bits then align", func(t *testing.T) {
-		buf := &bytes.Buffer{}
-		w := NewWriter(buf)
-		err := w.WriteBitsIntLe(12, 0xABC)
-		if err != nil {
-			t.Fatalf("err = %v", err)
-		}
-		err = w.AlignToByte()
-		if err != nil {
-			t.Fatalf("align err = %v", err)
-		}
-		if !bytes.Equal(buf.Bytes(), []byte{0xBC, 0x0A}) {
-			t.Errorf("got %v, want [BC 0A]", buf.Bytes())
-		}
-	})
+func testWriterWriteBitsIntBeTwoNibbles(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewWriter(buf)
+	err := w.WriteBitsIntBe(4, 0xA)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	err = w.WriteBitsIntBe(4, 0x5)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if !bytes.Equal(buf.Bytes(), []byte{0xA5}) {
+		t.Errorf("got %v, want [A5]", buf.Bytes())
+	}
+}
 
-	t.Run("round trip via Stream", func(t *testing.T) {
-		buf := &bytes.Buffer{}
-		w := NewWriter(buf)
-		err := w.WriteBitsIntLe(12, 0xABC)
-		if err != nil {
-			t.Fatalf("err = %v", err)
-		}
-		err = w.AlignToByte()
-		if err != nil {
-			t.Fatalf("align err = %v", err)
-		}
-		s := NewStream(bytes.NewReader(buf.Bytes()))
-		v, err := s.ReadBitsIntLe(12)
-		if err != nil {
-			t.Fatalf("read err: %v", err)
-		}
-		if v != 0xABC {
-			t.Errorf("round-trip got %#x, want 0xABC", v)
-		}
-	})
+func testWriterWriteBitsIntBeTwelveBits(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewWriter(buf)
+	err := w.WriteBitsIntBe(12, 0xABC)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	err = w.AlignToByte()
+	if err != nil {
+		t.Fatalf("align err = %v", err)
+	}
+	if !bytes.Equal(buf.Bytes(), []byte{0xAB, 0xC0}) {
+		t.Errorf("got %v, want [AB C0]", buf.Bytes())
+	}
+}
 
-	t.Run("64 bits after partial byte", func(t *testing.T) {
-		buf := &bytes.Buffer{}
-		w := NewWriter(buf)
-		err := w.WriteBitsIntLe(4, 0xA)
-		if err != nil {
-			t.Fatalf("err = %v", err)
-		}
-		err = w.WriteBitsIntLe(64, 0xDEADBEEF8BADF00D)
-		if err != nil {
-			t.Fatalf("err = %v", err)
-		}
-		err = w.AlignToByte()
-		if err != nil {
-			t.Fatalf("align err = %v", err)
-		}
-		s := NewStream(bytes.NewReader(buf.Bytes()))
-		v1, err := s.ReadBitsIntLe(4)
-		if err != nil {
-			t.Fatalf("read v1 err: %v", err)
-		}
-		v2, err := s.ReadBitsIntLe(64)
-		if err != nil {
-			t.Fatalf("read v2 err: %v", err)
-		}
-		if v1 != 0xA {
-			t.Errorf("v1 = %#x, want 0xA", v1)
-		}
-		if v2 != 0xDEADBEEF8BADF00D {
-			t.Errorf("v2 = %#x, want 0xDEADBEEF8BADF00D", v2)
-		}
-	})
+func testWriterWriteBitsIntBeMask(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewWriter(buf)
+	// Only the low 4 bits should make it out (0xF, then 0x0 from 0x10's low nibble).
+	err := w.WriteBitsIntBe(4, 0xFF)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	err = w.WriteBitsIntBe(4, 0x10)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if !bytes.Equal(buf.Bytes(), []byte{0xF0}) {
+		t.Errorf("got %v, want [F0]", buf.Bytes())
+	}
+}
+
+func testWriterWriteBitsIntBeRoundTrip(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewWriter(buf)
+	// 5 bits then 5 bits crossing a byte boundary.
+	err := w.WriteBitsIntBe(5, 0x15)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	err = w.WriteBitsIntBe(5, 0x0A)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	err = w.AlignToByte()
+	if err != nil {
+		t.Fatalf("align err = %v", err)
+	}
+	s := NewStream(bytes.NewReader(buf.Bytes()))
+	v1, err := s.ReadBitsIntBe(5)
+	if err != nil {
+		t.Fatalf("read err: %v", err)
+	}
+	v2, err := s.ReadBitsIntBe(5)
+	if err != nil {
+		t.Fatalf("read err: %v", err)
+	}
+	if v1 != 0x15 || v2 != 0x0A {
+		t.Errorf("round-trip: got (%#x, %#x), want (0x15, 0x0A)", v1, v2)
+	}
+}
+
+func testWriterWriteBitsIntBeFullWidth(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewWriter(buf)
+	val := uint64(0xDEADBEEF8BADF00D)
+	err := w.WriteBitsIntBe(64, val)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	want := []byte{0xDE, 0xAD, 0xBE, 0xEF, 0x8B, 0xAD, 0xF0, 0x0D}
+	if !bytes.Equal(buf.Bytes(), want) {
+		t.Errorf("got %v, want %v", buf.Bytes(), want)
+	}
+}
+
+func testWriterWriteBitsIntBeFullWidthAfterPartial(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewWriter(buf)
+	err := w.WriteBitsIntBe(4, 0xA)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	err = w.WriteBitsIntBe(64, 0xDEADBEEF8BADF00D)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	err = w.AlignToByte()
+	if err != nil {
+		t.Fatalf("align err = %v", err)
+	}
+	want := []byte{0xAD, 0xEA, 0xDB, 0xEE, 0xF8, 0xBA, 0xDF, 0x00, 0xD0}
+	if !bytes.Equal(buf.Bytes(), want) {
+		t.Errorf("got %v, want %v", buf.Bytes(), want)
+	}
+}
+
+func testWriterWriteBitsIntLeTwoNibbles(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewWriter(buf)
+	err := w.WriteBitsIntLe(4, 0xA)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	err = w.WriteBitsIntLe(4, 0x5)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if !bytes.Equal(buf.Bytes(), []byte{0x5A}) {
+		t.Errorf("got %v, want [5A]", buf.Bytes())
+	}
+}
+
+func testWriterWriteBitsIntLeTwelveBits(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewWriter(buf)
+	err := w.WriteBitsIntLe(12, 0xABC)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	err = w.AlignToByte()
+	if err != nil {
+		t.Fatalf("align err = %v", err)
+	}
+	if !bytes.Equal(buf.Bytes(), []byte{0xBC, 0x0A}) {
+		t.Errorf("got %v, want [BC 0A]", buf.Bytes())
+	}
+}
+
+func testWriterWriteBitsIntLeRoundTrip(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewWriter(buf)
+	err := w.WriteBitsIntLe(12, 0xABC)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	err = w.AlignToByte()
+	if err != nil {
+		t.Fatalf("align err = %v", err)
+	}
+	s := NewStream(bytes.NewReader(buf.Bytes()))
+	v, err := s.ReadBitsIntLe(12)
+	if err != nil {
+		t.Fatalf("read err: %v", err)
+	}
+	if v != 0xABC {
+		t.Errorf("round-trip got %#x, want 0xABC", v)
+	}
+}
+
+func testWriterWriteBitsIntLeFullWidthAfterPartial(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewWriter(buf)
+	err := w.WriteBitsIntLe(4, 0xA)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	err = w.WriteBitsIntLe(64, 0xDEADBEEF8BADF00D)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	err = w.AlignToByte()
+	if err != nil {
+		t.Fatalf("align err = %v", err)
+	}
+	s := NewStream(bytes.NewReader(buf.Bytes()))
+	v1, err := s.ReadBitsIntLe(4)
+	if err != nil {
+		t.Fatalf("read v1 err: %v", err)
+	}
+	v2, err := s.ReadBitsIntLe(64)
+	if err != nil {
+		t.Fatalf("read v2 err: %v", err)
+	}
+	if v1 != 0xA {
+		t.Errorf("v1 = %#x, want 0xA", v1)
+	}
+	if v2 != 0xDEADBEEF8BADF00D {
+		t.Errorf("v2 = %#x, want 0xDEADBEEF8BADF00D", v2)
+	}
 }
 
 func TestWriter_AlignToByte(t *testing.T) {

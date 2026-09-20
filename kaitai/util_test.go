@@ -260,7 +260,7 @@ func TestUnprocessZlib(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ProcessZlib() after compress error = %v", err)
 			}
-			if !reflect.DeepEqual(got, tt.in) && !(len(got) == 0 && len(tt.in) == 0) {
+			if !reflect.DeepEqual(got, tt.in) && (len(got) != 0 || len(tt.in) != 0) {
 				t.Errorf("round-trip mismatch: got %v, want %v", got, tt.in)
 			}
 		})

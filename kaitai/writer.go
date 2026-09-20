@@ -267,13 +267,7 @@ func (k *Writer) WriteBytesLimit(data []byte, size int, term int, padRight int) 
 	if remaining <= 0 {
 		return nil
 	}
-	// Determine pad byte: if padRight is set use it, else if term is set use term, else 0
-	pad := byte(0)
-	if padRight >= 0 {
-		pad = byte(padRight)
-	} else if term >= 0 {
-		pad = byte(term)
-	}
+	pad := bytesLimitPadding(term, padRight)
 	// Write terminator if specified
 	if term >= 0 && remaining > 0 {
 		err := k.WriteU1(byte(term))
@@ -294,6 +288,16 @@ func (k *Writer) WriteBytesLimit(data []byte, size int, term int, padRight int) 
 		}
 	}
 	return nil
+}
+
+func bytesLimitPadding(term, padRight int) byte {
+	if padRight >= 0 {
+		return byte(padRight)
+	}
+	if term >= 0 {
+		return byte(term)
+	}
+	return 0
 }
 
 // WriteBitsIntBe writes n bits in big-endian bit order. n must be in the
