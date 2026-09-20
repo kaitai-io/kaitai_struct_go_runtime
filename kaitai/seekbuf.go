@@ -88,15 +88,19 @@ func growSeekableBuffer(data []byte, end int) ([]byte, bool) {
 				ok = false
 			}
 		}()
-		newCap := end
-		maxInt := int(^uint(0) >> 1)
-		if end <= maxInt/2 {
-			newCap = end * 2
-		}
+		newCap := seekableBufferGrowthCapacity(end)
 		grown = make([]byte, end, newCap)
 		copy(grown, data)
 	}()
 	return grown, ok
+}
+
+func seekableBufferGrowthCapacity(end int) int {
+	maxInt := int(^uint(0) >> 1)
+	if end <= maxInt/2 {
+		return end * 2
+	}
+	return end
 }
 
 func (sb *SeekableBuffer) Seek(offset int64, whence int) (int64, error) {
