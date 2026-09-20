@@ -97,6 +97,47 @@ func TestWriterPosPendingBits(t *testing.T) {
 	}
 }
 
+func TestWriterHasPendingBitsDoesNotMutateState(t *testing.T) {
+	t.Run("unreserved", func(t *testing.T) {
+		buf := NewSeekableBuffer(nil)
+		w := NewWriter(buf)
+		require.NoError(t, w.WriteBitsIntBe(3, 5))
+		before := bytes.Clone(buf.Bytes())
+		beforePos := buf.pos
+
+		require.True(t, w.HasPendingBits())
+		require.True(t, w.HasPendingBits())
+		require.Equal(t, before, buf.Bytes())
+		require.Equal(t, beforePos, buf.pos)
+		require.Equal(t, uint64(5), w.bits)
+		require.Equal(t, 3, w.bitsLeft)
+		require.False(t, w.bitsReserved)
+
+		require.NoError(t, w.AlignToByte())
+		require.False(t, w.HasPendingBits())
+	})
+
+	t.Run("reserved", func(t *testing.T) {
+		buf := NewFixedSeekableBuffer(1)
+		w := NewWriter(buf)
+		require.NoError(t, w.WriteBitsIntLe(3, 5))
+		require.ErrorIs(t, w.WriteBitsIntLe(8, 0xff), ErrBufferCapacity)
+		before := bytes.Clone(buf.Bytes())
+		beforePos := buf.pos
+
+		require.True(t, w.HasPendingBits())
+		require.True(t, w.HasPendingBits())
+		require.Equal(t, before, buf.Bytes())
+		require.Equal(t, beforePos, buf.pos)
+		require.Equal(t, uint64(5), w.bits)
+		require.Equal(t, 3, w.bitsLeft)
+		require.True(t, w.bitsReserved)
+
+		require.NoError(t, w.WriteBitsIntLe(5, 0x13))
+		require.False(t, w.HasPendingBits())
+	})
+}
+
 func TestWriterPosNotSeekable(t *testing.T) {
 	_, err := NewWriter(&bytes.Buffer{}).Pos()
 	if !errors.Is(err, ErrWriterNotSeekable) {

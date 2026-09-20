@@ -58,6 +58,12 @@ func (k *Writer) Pos() (int64, error) {
 	}
 }
 
+// HasPendingBits reports whether a partial byte is waiting to be completed.
+// It does not flush pending bits or move the underlying writer's cursor.
+func (k *Writer) HasPendingBits() bool {
+	return k.bitsLeft > 0
+}
+
 // Seek seeks to the given position, if the stream is seekable.
 func (k *Writer) Seek(offset int64, whence int) (int64, error) {
 	err := k.AlignToByte()
