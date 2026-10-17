@@ -1,9 +1,158 @@
 #!/bin/sh -ef
 
-# Runs golangci-lint locally using Docker without installing it on machine
-# (see https://golangci-lint.run/docs/welcome/install/#docker)
+# Runs golangci-lint locally using Podman or Docker without installing it on
+# your machine (see https://golangci-lint.run/docs/welcome/install/#docker)
+#
+# Usage: ./docker-golangci-lint [--fix]
+#
+# With `--fix`, golangci-lint applies automatic fixes. Only then is the
+# `kaitai/` directory (which contains all Go source files) mounted
+# read-write; review the changes with `git diff`. `--fix` doesn't work with
+# rootless Docker: there, the current user's ID maps to a subordinate ID on
+# the host, which can't write to the repository.
+#
+# Podman is preferred if both are installed; set the `CONTAINER_ENGINE`
+# environment variable to `docker` or `podman` to choose explicitly.
+#
+# The script runs two containers, each with only the privileges it needs:
+#
+# 1. `go mod download` fetches the modules required by `go.mod` from
+#    https://proxy.golang.org only (no direct downloads from other hosts or
+#    version control systems), verifies them against `go.sum` (or the
+#    checksum database for modules missing from `go.sum`) and stores them in
+#    the named volume `kaitai_struct_go_runtime-gomod`, reused across runs.
+#    This is the only step with network access. It runs as the container's
+#    root user, which owns the volume (with rootless Podman, this is the
+#    current user).
+# 2. `go mod verify`, `golangci-lint config verify` (which checks
+#    `.golangci.yml` against the JSON Schema built into golangci-lint, as
+#    golangci-lint-action does in CI) and `golangci-lint run` run without
+#    network access, as the current user, with the repository and the module
+#    cache mounted read-only (except `kaitai/` with `--fix`). Command-line
+#    options override `.golangci.yml`, so that the configuration can neither
+#    enable automatic fixes (which would fail on the read-only mount and
+#    silently drop the fixable issues) nor change the exit code for found
+#    issues.
+#
+# Both steps run without any Linux capabilities, with a private IPC namespace,
+# with a read-only root filesystem and with `GOTOOLCHAIN=local`, so `go` never
+# downloads another toolchain. cgo is disabled, so the C compiler never runs
+# (the runtime is pure Go; note that files with `import "C"` would be skipped
+# without any error). Apart from `kaitai/` with `--fix`, the lint step can
+# only write to a tmpfs on /tmp, discarded after each run.
+#
+# To delete the module cache, run
+# `podman volume rm kaitai_struct_go_runtime-gomod` (or `docker volume rm ...`).
+
+set -ef
 
 # See https://github.com/kaitai-io/kaitai_struct_tests/blob/3c5fb218ba/docker-ci#L215-L220
 # for an explanation of why we use the `MSYS2_ARG_CONV_EXCL` environment variable
+export MSYS2_ARG_CONV_EXCL='*'
 
-MSYS2_ARG_CONV_EXCL='*' docker run -t --rm -v "$(pwd)":/app -w /app golangci/golangci-lint:v2.14.0@sha256:ad862ba6b3798cbe0fd9fd7408d498fd74fbd2623a92406b2fd3898faf0bf98f golangci-lint run -v
+image=docker.io/golangci/golangci-lint:v2.14.0@sha256:ad862ba6b3798cbe0fd9fd7408d498fd74fbd2623a92406b2fd3898faf0bf98f
+gomod_volume=kaitai_struct_go_runtime-gomod
+
+fix=false
+if [ "$#" -eq 1 ] && [ "$1" = --fix ]; then
+	fix=true
+elif [ "$#" -ne 0 ]; then
+	echo "usage: $0 [--fix]" >&2
+	exit 2
+fi
+
+# `CDPATH=''` makes `cd` ignore `CDPATH`, which could otherwise make it change
+# to a different directory of the same name. If the script was called via a
+# symlink, `dirname` gives the directory of the symlink, so check that this
+# directory is really the repository.
+CDPATH='' cd -- "$(dirname -- "$0")"
+repo_dir=$(pwd)
+if ! grep -q '^module github\.com/kaitai-io/kaitai_struct_go_runtime[[:space:]]*$' go.mod 2> /dev/null; then
+	echo "error: $repo_dir is not the kaitai_struct_go_runtime repository" >&2
+	exit 1
+fi
+case $repo_dir in
+	*[,:]*)
+		echo "error: the repository path must not contain ',' or ':': $repo_dir" >&2
+		exit 1
+		;;
+esac
+
+if [ -n "$CONTAINER_ENGINE" ]; then
+	engine=$CONTAINER_ENGINE
+elif command -v podman > /dev/null 2>&1; then
+	engine=podman
+elif command -v docker > /dev/null 2>&1; then
+	engine=docker
+else
+	echo "error: neither podman nor docker found" >&2
+	exit 1
+fi
+
+# Podman-specific options; `podman info` also works if Podman is invoked as
+# `docker` (podman-docker). With Docker, the template fails and the output
+# is empty.
+podman_rootless=$("$engine" info --format '{{.Host.Security.Rootless}}' 2> /dev/null || :)
+engine_opts=
+user_opts="--user=$(id -u):$(id -g)"
+case $podman_rootless in
+	true | false)
+		# Without this, Podman adds writable tmpfs mounts on /var/tmp etc.
+		engine_opts=--read-only-tmpfs=false
+		# Rootless Podman needs `--userns=keep-id` to keep the host user ID
+		# inside the container
+		if [ "$podman_rootless" = true ]; then
+			user_opts="$user_opts --userns=keep-id"
+		fi
+		;;
+esac
+
+# On SELinux systems, relabel the bind-mounted repository for this container
+# only, so that the container is allowed to read it (other containers are
+# not). The new label stays on the host directory afterwards.
+relabel=
+if command -v selinuxenabled > /dev/null 2>&1 && selinuxenabled; then
+	relabel=,Z
+fi
+
+tty_opt=
+if [ -t 1 ]; then
+	tty_opt=-t
+fi
+
+# shellcheck disable=SC2086 # word splitting of $engine_opts is intended
+set -- \
+	--rm \
+	--cap-drop=ALL \
+	--security-opt=no-new-privileges \
+	--read-only \
+	$engine_opts \
+	--tmpfs=/tmp:rw,noexec,nosuid,nodev \
+	--ipc=none \
+	-e HOME=/tmp \
+	-e GOCACHE=/tmp/go-build \
+	-e GOLANGCI_LINT_CACHE=/tmp/golangci-lint \
+	-e GOMODCACHE=/gomod \
+	-e GOFLAGS=-mod=readonly \
+	-e GOTOOLCHAIN=local \
+	-e GOWORK=off \
+	-e CGO_ENABLED=0 \
+	-v "$repo_dir":/app:ro$relabel \
+	-w /app
+
+"$engine" run "$@" \
+	-e GOPROXY=https://proxy.golang.org \
+	-e GOVCS='*:off' \
+	-v "$gomod_volume":/gomod \
+	"$image" go mod download
+
+if [ "$fix" = true ]; then
+	set -- "$@" -v "$repo_dir/kaitai":/app/kaitai:rw$relabel
+fi
+
+# shellcheck disable=SC2086 # word splitting of $user_opts and $tty_opt is intended
+"$engine" run "$@" $user_opts $tty_opt \
+	--network=none \
+	-e GOPROXY=off \
+	-v "$gomod_volume":/gomod:ro \
+	"$image" sh -c "go mod verify && golangci-lint config verify && exec golangci-lint run -v --fix=$fix --issues-exit-code=1"
