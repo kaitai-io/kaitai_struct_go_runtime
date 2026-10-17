@@ -1,7 +1,7 @@
 #!/bin/sh -ef
 
 # Runs golangci-lint locally using Podman or Docker without installing it on
-# your machine (see https://golangci-lint.run/docs/welcome/install/#docker)
+# your machine (see https://golangci-lint.run/docs/welcome/install/local/#docker)
 #
 # Usage: ./docker-golangci-lint [--fix]
 #
@@ -46,7 +46,7 @@
 
 set -ef
 
-# See https://github.com/kaitai-io/kaitai_struct_tests/blob/3c5fb218ba/docker-ci#L215-L220
+# See https://github.com/kaitai-io/kaitai_struct_tests/blob/59afee013e1a8e5fb894ca99838f55ef7b329cb3/docker-ci#L221-L226
 # for an explanation of why we use the `MSYS2_ARG_CONV_EXCL` environment variable
 export MSYS2_ARG_CONV_EXCL='*'
 
