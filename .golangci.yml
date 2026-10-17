@@ -4,12 +4,14 @@ linters:
   disable:
     - depguard
     - exhaustruct
+    - exhaustruct_v5
     - gocognit
     - gocyclo
     - godot
     - godox
     - goheader
     - gomodguard
+    - gomodguard_v2
     - goprintffuncname
     - mnd
     - nestif
@@ -19,6 +21,9 @@ linters:
     - varnamelen
     - wsl
     - wsl_v5
+  settings:
+    goconst:
+      ignore-tests: true
   exclusions:
     generated: lax
     presets:
