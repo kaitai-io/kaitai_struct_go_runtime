@@ -1,6 +1,13 @@
 package kaitai
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+// ErrWriterNotSeekable indicates that a Writer's underlying stream does not
+// implement io.Seeker.
+var ErrWriterNotSeekable = errors.New("stream is not seekable")
 
 // EndOfStreamError is returned when the stream unexpectedly ends.
 type EndOfStreamError struct{}
@@ -15,6 +22,56 @@ type UndecidedEndiannessError struct{}
 
 func (UndecidedEndiannessError) Error() string {
 	return "undecided endianness"
+}
+
+// ConsistencyError reports that a generated consistency check found a field
+// whose actual value differs from its expected value.
+type ConsistencyError struct {
+	id       string
+	expected any
+	actual   any
+}
+
+// NewConsistencyError creates a new ConsistencyError instance.
+func NewConsistencyError(id string, expected any, actual any) ConsistencyError {
+	return ConsistencyError{
+		id:       id,
+		expected: expected,
+		actual:   actual,
+	}
+}
+
+// ID is a getter of the field or attribute identifier associated with the
+// consistency error.
+func (e ConsistencyError) ID() string { return e.id }
+
+// Expected is a getter of the expected value associated with the consistency error.
+func (e ConsistencyError) Expected() any { return e.expected }
+
+// Actual is a getter of the actual value associated with the consistency error.
+func (e ConsistencyError) Actual() any { return e.actual }
+
+func (e ConsistencyError) Error() string {
+	return fmt.Sprintf("Check failed: %s, expected: %v, actual: %v", e.id, e.expected, e.actual)
+}
+
+// ConsistencyNotCheckedError reports an attempt to write a generated object
+// whose consistency has not been checked since its last modification.
+type ConsistencyNotCheckedError struct {
+	context any
+}
+
+// NewConsistencyNotCheckedError creates a new ConsistencyNotCheckedError
+// instance. Context may identify the generated object or type and may be nil.
+func NewConsistencyNotCheckedError(context any) ConsistencyNotCheckedError {
+	return ConsistencyNotCheckedError{context: context}
+}
+
+// Context is a getter of the optional generated object or type context.
+func (e ConsistencyNotCheckedError) Context() any { return e.context }
+
+func (ConsistencyNotCheckedError) Error() string {
+	return "consistency not checked: _check() has not been called since the last modification of the object"
 }
 
 type locationInfo struct {

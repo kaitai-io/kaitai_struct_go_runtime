@@ -2,9 +2,81 @@ package kaitai
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
+	"reflect"
 	"testing"
 )
+
+func TestConsistencyError(t *testing.T) {
+	tests := []struct {
+		name     string
+		id       string
+		expected any
+		actual   any
+		want     string
+	}{
+		{"scalar", "header/version", 2, 1, "Check failed: header/version, expected: 2, actual: 1"},
+		{"string", "name", "foo", "bar", "Check failed: name, expected: foo, actual: bar"},
+		{
+			"byte slice", "payload", []byte{0xa0, 0x00}, []byte{0x00, 0xa0},
+			"Check failed: payload, expected: [160 0], actual: [0 160]",
+		},
+		{"nil", "optional", nil, nil, "Check failed: optional, expected: <nil>, actual: <nil>"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := fmt.Errorf("generated check: %w", NewConsistencyError(tt.id, tt.expected, tt.actual))
+			var target ConsistencyError
+			if !errors.As(err, &target) {
+				t.Fatalf("errors.As(%v) did not find ConsistencyError", err)
+			}
+			if target.ID() != tt.id {
+				t.Errorf("ID() = %q, want %q", target.ID(), tt.id)
+			}
+			if !reflect.DeepEqual(target.Expected(), tt.expected) {
+				t.Errorf("Expected() = %#v, want %#v", target.Expected(), tt.expected)
+			}
+			if !reflect.DeepEqual(target.Actual(), tt.actual) {
+				t.Errorf("Actual() = %#v, want %#v", target.Actual(), tt.actual)
+			}
+			if got := target.Error(); got != tt.want {
+				t.Errorf("Error() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestConsistencyNotCheckedError(t *testing.T) {
+	type generatedObject struct {
+		value int
+	}
+	object := &generatedObject{value: 42}
+	const wantMessage = "consistency not checked: _check() has not been called since the last modification of the object"
+
+	for _, tt := range []struct {
+		name    string
+		context any
+	}{
+		{"generated object", object},
+		{"no context", nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := fmt.Errorf("generated write: %w", NewConsistencyNotCheckedError(tt.context))
+			var target ConsistencyNotCheckedError
+			if !errors.As(err, &target) {
+				t.Fatalf("errors.As(%v) did not find ConsistencyNotCheckedError", err)
+			}
+			if target.Context() != tt.context {
+				t.Errorf("Context() = %#v, want %#v", target.Context(), tt.context)
+			}
+			if got := target.Error(); got != wantMessage {
+				t.Errorf("Error() = %q, want %q", got, wantMessage)
+			}
+		})
+	}
+}
 
 func TestEndOfStreamError_Error(t *testing.T) {
 	tests := []struct {
