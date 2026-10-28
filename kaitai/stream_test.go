@@ -635,6 +635,12 @@ func TestStream_ReadBytesTerm(t *testing.T) {
 		{"ReadBytesTerm", NewStream(bytes.NewReader([]byte("fooo"))), args{'o', false, true, true}, []byte("f"), false},
 		{"ReadBytesTerm", NewStream(bytes.NewReader([]byte("fooo"))), args{'o', true, false, true}, []byte("fo"), false},
 		{"ReadBytesTerm", NewStream(bytes.NewReader([]byte("fooo"))), args{'o', true, true, true}, []byte("fo"), false},
+		{"ReadBytesTerm EOF no term", NewStream(bytes.NewReader([]byte("abc"))), args{'x', false, false, false}, []byte("abc"), false},
+		{"ReadBytesTerm EOF no term includeTerm", NewStream(bytes.NewReader([]byte("abc"))), args{'x', true, false, false}, []byte("abc"), false},
+		{"ReadBytesTerm EOF no term consumeTerm", NewStream(bytes.NewReader([]byte("abc"))), args{'x', false, true, false}, []byte("abc"), false},
+		{"ReadBytesTerm EOF no term both", NewStream(bytes.NewReader([]byte("abc"))), args{'x', true, true, false}, []byte("abc"), false},
+		{"ReadBytesTerm EOF no term eosError", NewStream(bytes.NewReader([]byte("abc"))), args{'x', false, false, true}, []byte("abc"), true},
+		{"ReadBytesTerm EOF empty stream", NewStream(bytes.NewReader([]byte{})), args{'x', false, false, false}, []byte{}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
