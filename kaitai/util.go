@@ -54,6 +54,21 @@ func ProcessZlib(in []byte) ([]byte, error) {
 	return res, nil
 }
 
+// UnprocessZlib compresses data using zlib.
+func UnprocessZlib(in []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	w := zlib.NewWriter(&buf)
+	_, err := w.Write(in)
+	if err != nil {
+		return nil, fmt.Errorf("UnprocessZlib: error writing zlib data: %w", err)
+	}
+	err = w.Close()
+	if err != nil {
+		return nil, fmt.Errorf("UnprocessZlib: error flushing zlib stream: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
 // BytesToStr returns a string decoded by the given decoder.
 func BytesToStr(in []byte, decoder *encoding.Decoder) (string, error) {
 	i := bytes.NewReader(in)

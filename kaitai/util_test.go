@@ -101,6 +101,33 @@ func TestProcessZlib(t *testing.T) {
 	}
 }
 
+func TestUnprocessZlib(t *testing.T) {
+	tests := []struct {
+		name string
+		in   []byte
+	}{
+		{"Empty", []byte{}},
+		{"Short string", []byte("goodbye, world")},
+		{"Binary data", []byte{0x00, 0x01, 0x02, 0xff, 0xfe, 0xfd, 0x00, 0x00, 0x00}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			compressed, err := UnprocessZlib(tt.in)
+			if err != nil {
+				t.Fatalf("UnprocessZlib() error = %v", err)
+			}
+			// Round-trip through ProcessZlib to verify validity.
+			got, err := ProcessZlib(compressed)
+			if err != nil {
+				t.Fatalf("ProcessZlib() after compress error = %v", err)
+			}
+			if !reflect.DeepEqual(got, tt.in) && !(len(got) == 0 && len(tt.in) == 0) {
+				t.Errorf("round-trip mismatch: got %v, want %v", got, tt.in)
+			}
+		})
+	}
+}
+
 func TestBytesToStr(t *testing.T) {
 	utf16 := unicode.UTF16(unicode.BigEndian, unicode.ExpectBOM)
 	type args struct {
