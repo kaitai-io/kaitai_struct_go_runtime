@@ -67,7 +67,7 @@ fi
 # directory is really the repository.
 CDPATH='' cd -- "$(dirname -- "$0")"
 repo_dir=$(pwd)
-if ! grep -q '^module github\.com/kaitai-io/kaitai_struct_go_runtime[[:space:]]*$' go.mod 2> /dev/null; then
+if ! grep -q '^module github\.com/kaitai-io/kaitai_struct_go_runtime/v2[[:space:]]*$' go.mod 2> /dev/null; then
 	echo "error: $repo_dir is not the kaitai_struct_go_runtime repository" >&2
 	exit 1
 fi

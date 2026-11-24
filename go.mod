@@ -1,4 +1,4 @@
-module github.com/kaitai-io/kaitai_struct_go_runtime
+module github.com/kaitai-io/kaitai_struct_go_runtime/v2
 
 go 1.26.0
 
